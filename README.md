@@ -15,6 +15,13 @@
 - Отладка ядра и прикладных задач выполняется через подсистему Trace. На контроллерах Cortex-M поддерживается вывод отладочной информации через ITM SWO или UART.
 
 ## Интерфейсы С11
+* поддержка threads.h...
+* 
 
+
+## Интерфейс CMSIS-RTOS 
+## Интерфейс CMSIS-RTOS v2
+* osMemoryPool
+* Thread Flags
 
 Copyright (c) 2008-2022. Anatoly Georgivskii
