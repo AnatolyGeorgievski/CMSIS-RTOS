@@ -250,6 +250,7 @@ osStatus osThreadInit(void)
 	__set_MSP((uint32_t)sp);
 #endif
 	// разрешить переключение контекста
+	NVIC_SetPriority(SVCall_IRQn, (1<<__NVIC_PRIO_BITS) - 1); // самый низкий приоритет
 	NVIC_SetPriority(PendSV_IRQn, (1<<__NVIC_PRIO_BITS) - 1); // самый низкий приоритет
 	// разрешить прерывания на переключение контекста
 	return osOK;
@@ -467,8 +468,6 @@ osStatus osThreadNotify(osThreadId thread_id)
 {
 	// \TODO вставить в очередь с учетом приоритета
 	if (thread_id != current_thread) {// если всего два треда, то не надо мутить 
-		// исключить из списка задач
-		
 /*
 		volatile void** ptr = &current_thread->next;
 		thread_id->next = atomic_pointer_exchange(ptr, thread_id->next);
@@ -478,6 +477,9 @@ osStatus osThreadNotify(osThreadId thread_id)
 		} while (!atomic_pointer_compare_and_exchange(ptr, thread_id->next, tcb));
 		__YIELD();// вызвать переключение задач на выходе из прерывания
 		*/
+		SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;// вызов PendSV
+	} else {
+		SCB->ICSR |= SCB_ICSR_PENDSVCLR_Msk;// запретить вызов PendSV
 	}
 	return osOK;	
 }
@@ -491,13 +493,7 @@ int osThreadErrno (osThreadId thread_id, int err_no)
 void  PendSV_Handler(void) PRIVILEGED_FUNCTION;
 __attribute__((naked)) void PendSV_Handler();
 /*!  \brief переключение контекстов задач
-Cortex-M3
-Cortex-M4
-Cortex-M4F
-Cortex-M7
-
-
-
+Cortex-M3 Cortex-M4 Cortex-M4F Cortex-M7 Cortex-M23 Cortex-M33
  */
 void PendSV_Handler()
 {
@@ -660,10 +656,10 @@ skip_event:
 # if defined(__ARM_ARCH_8M_BASE__) 
 		*(--sp) = (uint32_t)0xFFFFFFBC; //PSP Thread no-FPU, Cortex-M23/33 wo security extention
 # else
-		*(--sp) = (uint32_t)0xFFFFFFFD; //PSP Thread no-FPU, 0xFFFFFFE9 - MSP
+		*(--sp) = (uint32_t)EXC_RETURN_THREAD_PSP;// 0xFFFFFFFD PSP Thread no-FPU, 0xFFFFFFE9 - MSP
 # endif
 #else
-		*(--sp) = (uint32_t)0xFFFFFFF9; //MSP Thread no-FPU, 0xFFFFFFE9 - MSP
+		*(--sp) = (uint32_t)EXC_RETURN_THREAD_MSP; // 0xFFFFFFF9 MSP Thread no-FPU, 0xFFFFFFE9 - MSP w-FPU
 #endif
 		sp-=8;// R4-R11 в любой последовательности
 		current_thread->sp = sp;
