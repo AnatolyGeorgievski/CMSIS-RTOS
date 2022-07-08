@@ -11,6 +11,7 @@
 	\see http://developer.mbed.org/handbook/CMSIS-RTOS
 	\see The Definitive Guide to ARM® Cortex®-M3 and Cortex®-M4 Processors
 	\see https://github.com/ARM-software/CMSIS_5
+	\see STM32 Cortex ®-M33 MCUs programming manual (PM0264)
 \{
 	Идеи:
 	Идентификатор треда osThreadId == адрес TCB.
@@ -29,7 +30,6 @@
 	__ISB();
 	//task0();
 	//SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;// запуск PendSV
-	while(1);// нет возврата
 
 	Запись элемента в очередь должна осуществляться атомарно. нужен примитив atomic_unlink(); и atomic_insert
 	volatile void* ptr = tcb_list->next;
@@ -40,7 +40,22 @@
 	11.03.2020 Надо бы добавить конкуренцию тредам. Есть идея такая - задержка на переключение не должна превышать установленный таймаут. Каждая задача должна выполняться согласно приоритету. см. определение cooperative multitasking и preemptive multitasking
 	
 	09.05.2021 Надо бы очищать бит FPU->FPCCR &= ~(FPU_FPCCR_LSPACT_Msk); // активность FPU для вновь запускаемого треда.
-	
+	\see ARMv8-M Exception and interrupt handling Version 2.0
+		For implementations without the Security Extension;
+		EXC_RETURN Condition
+		0xFFFFFFB0 Return to Handler mode.
+		0xFFFFFFB8 Return to Thread mode using the main stack.
+		0xFFFFFFBC Return to Thread mode using the process stack.	
+		
+Where synchronization is required between these separate cores, it can be provided through
+message passing communication protocols, for example, the Multicore Communications
+Association API (MCAPI). These can be implemented by using shared memory to pass data
+packets and by the use of software-triggered interrupts to implement a so-called door-bell
+mechanism.
+
+The Multicore Communications API (MCAPI) is the first specification to be produced by the Multicore Association. MCAPI provides a standardized API for communication and synchronization between closely distributed (multiple cores on a chip and/or chips on a board) embedded systems. 
+
+MCAPI provides three modes of communication: messages, packets, scalars
  */
 #include "board.h"
 #include <cmsis_os.h>
