@@ -784,4 +784,18 @@ uint32_t osThreadFlagsWait(uint32_t flags, uint32_t options, uint32_t timeout)
 	osEventWait(&event, timeout);//signals, (millisec), (osEventSignal|osEventTimeout));
 	return (event.status & osEventTimeout)?osFlagsErrorTimeout: event.value.signals;
 }
+uint32_t osThreadFlagsSet(osThreadId_t thread_id, uint32_t flags)
+{
+	// if (thread_id==NULL) return 0x80000000; эту проверку надо куда-то убрать. В коде ей не место
+	return atomic_fetch_or((volatile int *)&thread_id->process.signals, (flags & OS_SIGNAL_MASK));
+}
+uint32_t osThreadFlagsClear(osThreadId_t thread_id, uint32_t flags)
+{
+	// if (thread_id==NULL) return 0x80000000; эту проверку надо куда-то убрать. В коде ей не место
+	return atomic_fetch_and((volatile int *)&thread_id->process.signals, ~(flags & OS_SIGNAL_MASK));
+}
+uint32_t osThreadFlagsGet(osThreadId_t thread_id)
+{
+	return (thread_id->process.signals & OS_SIGNAL_MASK);
+}
 #endif

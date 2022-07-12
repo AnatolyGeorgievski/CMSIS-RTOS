@@ -1,6 +1,7 @@
 #ifndef SEMAPHORE_H
 #define SEMAPHORE_H
 #include "atomic.h"
+#include <time.h>
 /*! \defgroup _semaphore_base Базовое определение семафоров
 
     Семафор — это объект, с которым можно выполнить три операции:
@@ -10,6 +11,9 @@
 
     семафоры могут использоваться в ядре и в прерываниях. На базовом определении семафоров строятся \ref _memory_pool "osPool выделение памяти из таблицы", \ref _mutex "Мьютексы" и \ref _semaphore "Семафоры"
 
+	\see The Open Group Base Specifications Issue 7, 2018 edition
+	\see IEEE Std 1003.1-2017 (Revision of IEEE Std 1003.1-2008)
+https://pubs.opengroup.org/onlinepubs/9699919799/
     \{
 */
 
@@ -52,6 +56,19 @@ static inline int semaphore_leave(volatile int * ptr)
     return atomic_fetch_add(ptr, 1);
     //atomic_mb();// сбрасываем ?
 }
+
+typedef volatile int32_t sem_t;
+int    sem_close(sem_t *);
+int    sem_destroy(sem_t *);
+int    sem_getvalue(sem_t *restrict, int *restrict);
+int    sem_init(sem_t *, int, unsigned);
+sem_t *sem_open(const char *, int, ...);
+int    sem_post(sem_t *);
+int    sem_timedwait(sem_t *restrict, const struct timespec *restrict);
+int    sem_trywait(sem_t *);
+int    sem_unlink(const char *);
+int    sem_wait(sem_t *);
+
 
 //! \}
 #endif // SEMAPHORE_H

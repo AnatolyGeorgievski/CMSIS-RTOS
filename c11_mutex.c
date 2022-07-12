@@ -20,6 +20,15 @@ int  mtx_unlock (mtx_t *mtx)
 	__DMB();
 	return thrd_success;
 }
+/*! \brief 
+	\param type
+	\arg mtx_plain
+		which is passed to mtx_init to create a mutex object that supports neither timeout nor test and return;
+	\arg mtx_recursive
+		which is passed to mtx_init to create a mutex object that supports recursive locking;
+	\arg mtx_timed
+		which is passed to mtx_init to create a mutex object that supports timeout;
+*/
 int  mtx_init(mtx_t *mtx, int type)
 {
 	semaphore_init(&mtx->count, 1);

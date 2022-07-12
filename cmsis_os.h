@@ -150,6 +150,7 @@ used throughout the whole project.
 #define osFeature_Modules      1       ///< R3 модули
 #define osFeature_Services     1       ///< R3 сервисы, процессы
 #define osFeature_OpenCL       0       ///< R3 модули
+#define osFeature_ThreadFlags  1       ///< Флаги для RTOSv2
 #define osFeature_ThreadCount  8       ///< R3 максимальное число тредов в системе
 #define osFeature_ThreadPool   0       ///< R3 osThreadPool functions: 1=available, 0=not available
 #define osFeature_Condition    0       ///< R3 osCond functions: 1=available, 0=not available
@@ -157,7 +158,7 @@ used throughout the whole project.
 #define osFeature_Pool         1       ///< Memory Pools:    1=available, 0=not available
 #define osFeature_MailQ        0       ///< Mail Queues:     1=available, 0=not available
 #define osFeature_MessageQ     0       ///< Message Queues:  1=available, 0=not available
-#define osFeature_Signals      32      ///< maximum number of Signal Flags available per thread
+#define osFeature_Signals      31      ///< maximum number of Signal Flags available per thread
 #define osFeature_Semaphore    30      ///< maximum count for \ref osSemaphoreCreate function
 #define osFeature_Wait         1       ///< osWait function: 1=available, 0=not available
 #define osFeature_SysTick      1       ///< osKernelSysTick functions: 1=available, 0=not available
@@ -256,6 +257,7 @@ typedef void (*os_ptimer) (void *argument);
 /// Thread ID identifies the thread (pointer to a thread control block).
 /// \note CAN BE CHANGED: \b os_thread_cb is implementation specific in every CMSIS-RTOS.
 typedef struct os_thread_cb *osThreadId;
+typedef struct os_thread_cb *osThreadId_t;
 
 /// Timer ID identifies the timer (pointer to a timer control block).
 /// \note CAN BE CHANGED: \b os_timer_cb is implementation specific in every CMSIS-RTOS.
