@@ -1,5 +1,29 @@
 #include <cmsis_os.h>
 #include <threads.h>
+/*! \ingroup _system
+	\defgroup _cond_ C11 Condition
+	
+
+	\brief Функции управлениея некондицией процессов. 
+	
+	Некондиция представляет собой спсоб управления синхронизацией процессов, 
+	когда один процесс управляет оживлением множества некондиционных процессов. 
+	Процесс может, заблокировать себя используя собственную блокировку (мьютекс) впасть в некондиционное состояние
+	идентифицируемое, как абстрактная некондиция. 
+	Кондиция это иживление некондиционных процессов - переменная типа \b Cond_t, пожет иметь только идентификатор или адрес, который служит идентификатором, 
+	без ассоциированных данных. 
+	
+	Выход из некондиции происходит либо по истечение заданного интервала времени, либо по сигналу 
+	от процесса выполняющего управление некондицией. Некондиция самоблокированных процессов скапливается 
+	в форме списка. Список некондиции связанных с идентификатором кондиции существует неявно и обрабатывается операционной системой.
+	
+	Методы управлениея некондицией включают возможность оживить и заставить работать один процесс из списка некондиции или все сразу.
+	
+	С точки зрения поведения процессов в системе, те что самоблокировались и ожидают кондиции, по сути ждут либо освобождения какого-то 
+	ресурса, но тогда следует использовать ожидание семафора, либо ждут наступления какого-то события. 
+
+	\{
+*/
 /*! \see ARM® Synchronization Primitives */
 #include "semaphore.h"
 #include "r3_slice.h"
@@ -13,7 +37,7 @@ struct os_mutex_cb {
 struct os_cond_cb {
 	struct _list_mtx * list;
 };
-/*! \brief
+/*! \brief Инициализация некондиции
 
 The \b cnd_init function creates a condition variable. If it succeeds it sets the variable pointed to by
 cond to a value that uniquely identifies the newly created condition variable. A thread that calls
@@ -26,7 +50,7 @@ int cnd_init(cnd_t *cond)
 	cond->list=NULL;
 	return thrd_success;
 }
-/*! \brief
+/*! \brief удаление некондиции
 
 The \b cnd_destroy function releases all resources used by the condition variable pointed to by cond.
 The \b cnd_destroy function requires that no threads be blocked waiting for the condition variable
@@ -53,7 +77,7 @@ void cnd_destroy(cnd_t *cond)
 	}
 	return;
 }
-/*! \brief
+/*! \brief Оповещение о кондиции одного процесса
 
 The \b cnd_signal function unblocks one of the threads that are blocked on the condition variable
 pointed to by cond at the time of the call. If no threads are blocked on the condition variable at the
@@ -78,7 +102,7 @@ int cnd_signal(cnd_t *cond)
 	g_slice_free(struct _list_mtx, node);
 	return thrd_success;
 }
-/*! \brief
+/*! \brief Оповестить все процессы в сипске о наступлении события
 
 The cnd_broadcast function unblocks all of the threads that are blocked on the condition variable
 pointed to by cond at the time of the call. If no threads are blocked on the condition variable pointed
@@ -105,6 +129,7 @@ int cnd_broadcast(cnd_t *cond)
 	}
 	return thrd_success;
 }
+/*! \brief Ускорение операций дления на константу */
 static inline uint32_t div1000(uint32_t v) {
     return (v*0x83126E98ULL)>>41;
 }
@@ -115,7 +140,15 @@ static inline uint32_t div1M(uint32_t v) {
     return (v*0x8637BD06ULL)>>51;
 #endif
 }
+/*! \brief Ожидать состояние кондиции 
+	\param [in] cond - переммнная/идентификатор группы некондиции
+	\param [in] mtx - собственная блокировка, мьютекс
 
+Процесс совершает акт само блокировки и переходит в некондиционное состояние на неопределенное время, 
+помещается в список некондиции, связанный с идентификатором группы некондиции \b cond.
+
+	
+ */
 int cnd_wait(cnd_t *cond, mtx_t *mtx)
 {
 	volatile void**head = (volatile void**)&cond->list;
@@ -150,3 +183,4 @@ int cnd_timedwait(cnd_t *restrict cond, mtx_t *restrict mtx, const struct timesp
 	osEventWait(&event, millisec);
 	return (event.status == osEventTimeout)?thrd_timedout: thrd_success;
 }
+	//! \}

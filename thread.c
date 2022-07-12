@@ -1,4 +1,8 @@
 /*! \ingroup _system
+    \defgroup _thrd С11 Thread management
+	\brief Управление потоками
+ */
+/*! \ingroup _system
     \defgroup _thread Thread management
 
 
@@ -298,7 +302,12 @@ osEvent* osProcessGetEvent(osProcessId thr)
 	return &thr->event;
 }
 #endif
-// C11
+/*! \ingroup _thrd 
+	\breif Создать контекст и запустить процесс
+	\param thrd - идентификатор треда или NULL
+	\param func - функция процесса
+	\param arg - аргумент функции процесса
+ */
 int thrd_create(thrd_t *thrd, thrd_start_t func, void *arg)
 {
 	thrd_t thr = NULL;
@@ -369,6 +378,9 @@ _Noreturn void exit (int err) {
 	current_thread->errno = err;
     (void) osThreadTerminate(current_thread);
 }*/
+/*! \brief В довершение процесса выполняется указанная функция 
+	\ingroup _thrd 
+ */
 int atexit(void (*func)(void))
 {
 	uint32_t* stk = (uint32_t*)TCB_PTR(current_thread) + (OS_CCM_SLICE>>2);
@@ -378,6 +390,10 @@ int atexit(void (*func)(void))
 #include <errno.h>
 #define errno (*_errno())
 */
+/*! \brief В довершение процесса выполняется указанная функция 
+	\ingroup _thrd 
+	\required #include <errno.h>
+ */
 int* __errno()
 {
 	return &current_thread->error_no;

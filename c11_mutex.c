@@ -1,8 +1,13 @@
 #include <cmsis_os.h>
 #include <threads.h>
-
+/*! \ingroup _system
+	\defgroup _mtx_  C11 Mutex
+	
+	\{
+	
+ */
 #include "semaphore.h"
-
+/*! \brief Приватоное определение мьютекса */
 struct os_mutex_cb {
 	volatile int count;
 };
@@ -20,13 +25,13 @@ int  mtx_unlock (mtx_t *mtx)
 	__DMB();
 	return thrd_success;
 }
-/*! \brief 
+/*! \brief Инициализация блокировки (мьютекса)
 	\param type
-	\arg mtx_plain
+	\arg \b mtx_plain
 		which is passed to mtx_init to create a mutex object that supports neither timeout nor test and return;
-	\arg mtx_recursive
+	\arg \b mtx_recursive
 		which is passed to mtx_init to create a mutex object that supports recursive locking;
-	\arg mtx_timed
+	\arg \b mtx_timed
 		which is passed to mtx_init to create a mutex object that supports timeout;
 */
 int  mtx_init(mtx_t *mtx, int type)
@@ -62,7 +67,7 @@ int  mtx_timedlock(mtx_t *restrict mtx, const struct timespec *restrict ts)
 	return (event.status == osEventTimeout)?thrd_timedout: thrd_success;
 	
 }
-/*! \brief 
+/*! \brief Неблокирующий вызов мьютекса
 
 The \b mtx_trylock function endeavors to lock the mutex pointed to by mtx. If the mutex is already
 locked, the function returns without blocking. If the operation succeeds, prior calls to mtx_unlock
@@ -80,3 +85,4 @@ void mtx_destroy(mtx_t *mtx)
 {
 	semaphore_init(&mtx->count, 0);
 }
+//! \}

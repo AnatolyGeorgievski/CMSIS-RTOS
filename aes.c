@@ -1,6 +1,9 @@
-/*! \defgroup _aes_ алгоритмы шифрования AES-128
+/*! \defgroup _aes_ Алгоритмы блочного шифрования AES-128
 
 	\see http://csrc.nist.gov/publications/fips/fips197/fips-197.pdf
+	
+	
+	\{
  */
 #include <inttypes.h>
 #include <stdio.h>
@@ -250,7 +253,7 @@ static void AddRoundKey(uint32_t *state, uint32_t *key)
 }
 
 
-/*! AES-128 разгибание ключа */
+/*! \brief AES-128 разгибание ключа шифрования */
 void KeyExpansion(uint32_t *key, uint32_t *w, int Nk_)
 {
     const int Nk = 4, Nbr = 4*11;
@@ -273,7 +276,7 @@ void KeyExpansion(uint32_t *key, uint32_t *w, int Nk_)
         w[i] = w[i-Nk] ^ temp;
     }
 }
-/*! AES-128 разгибание ключа */
+/*! \brief AES-128 обратное разгибание ключа шифрования */
 void InvKeyExpansion(uint32_t w[][4], int Nk_)
 {
     int i;
@@ -309,6 +312,7 @@ void AES_decrypt(uint32_t* state, uint32_t key[][4])
         AddRoundKey(state, key[round]);
     } while (round--);
 }
+	//! \}
 #ifdef TEST_SBOX
 #define ROTL8(x,n) (((x)<<(n)) ^((x)>>(8-(n))))
 // https://en.wikipedia.org/wiki/Rijndael_S-box

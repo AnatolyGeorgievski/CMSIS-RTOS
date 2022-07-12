@@ -1,4 +1,9 @@
-/* Thread-specific storage functions */
+/*! \ingroup _system
+	\defgroup _tss_ C11 Thread-specific storage functions
+	\brief Thread-specific storage functions 
+	
+	\{
+ */
 
 #include <threads.h>
 #include "thread.h"
@@ -44,3 +49,4 @@ void  tss_destroy(tss_t tss)
 		tss = tss_next;
 	}
 }
+	//! \}

@@ -1,5 +1,6 @@
-/*! ELF32 file format 
-
+/*!
+	\defgroup _elf_ ELF32 file format 
+	\{
 http://www.skyfree.org/linux/references/ELF_Format.pdf
 https://static.docs.arm.com/ihi0044/g/aaelf32.pdf
 
@@ -1079,3 +1080,4 @@ int section_index(const char* name)
 }
 
 #endif
+	//! \}
