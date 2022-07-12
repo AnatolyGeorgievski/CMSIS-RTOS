@@ -330,7 +330,8 @@ int thrd_create(thrd_t *thrd, thrd_start_t func, void *arg)
 	if(thrd) *thrd = thr;
 	return thrd_success;
 }
-/*!	\brief Удалить задачу из списка активных задач
+/*!	\brief Завершить выполнение потока
+	\ingroup _thrd
 	\param args - это то что возвращается из треда
 	\return нет возврата
 	
@@ -352,10 +353,16 @@ extern void  tss_destroy(tss_t tss);
     svc(SVC_KILL);
 	while(1);
 }
+/*!	\brief Идентификация активного треда
+	\ingroup _thrd
+ */
 thrd_t thrd_current(void)
 { 
 	return current_thread; 
 }
+/*!	\brief Ожидать завершения треда
+	\ingroup _thrd
+ */
 int thrd_joint(thrd_t thr, int *res)
 {
 	// найти тред и ждать его завершения
@@ -364,10 +371,16 @@ int thrd_joint(thrd_t thr, int *res)
 	//if (res) *res = thr->errno;
 	// free(thr);
 }
+/*!	\brief Исключить тред из списка
+	\ingroup _thrd
+ */
 int thrd_detach(thrd_t thr) 
 {
 	return thrd_success;
 }
+/*!	\brief Кооперативно (добровольно) передать управление
+	\ingroup _thrd
+ */
 void thrd_yield(void)
 {
 	svc(SVC_YIELD);
@@ -392,7 +405,7 @@ int atexit(void (*func)(void))
 */
 /*! \brief В довершение процесса выполняется указанная функция 
 	\ingroup _thrd 
-	\required #include <errno.h>
+	\req #include <errno.h>
  */
 int* __errno()
 {
@@ -400,6 +413,7 @@ int* __errno()
 }
 
 /*!	\brief Создать процесс
+	\ingroup _thread
     \note функция может запускаться до инициализации ядра.
 	
 	Приложения: 
@@ -428,13 +442,16 @@ osThreadId osThreadCreate (const osThreadDef_t *thread_def, void *args)
 }
 
 /*!	\brief Удалить задачу из списка активных задач
+	\ingroup _thread
 	\param args - это то что возвращается из треда
 	\return нет возврата
 */
 void  osThreadExit();
 
-__attribute__((noinline)) osStatus osThreadTerminate (osThreadId thread_id);
+__attribute__((noinline)) 
+osStatus osThreadTerminate (osThreadId thread_id);
 /*!	\brief Удалить задачу из списка активных задач
+	\ingroup _thread
 
 	\todo надо запретить одновременное исполнение операции osThreadTerminate, в случае
 	\note нельзя вызывать функцию для себя
@@ -490,7 +507,9 @@ osStatus osThreadYield (void)
 /*! \} */
 
 
-/*! эта функция предназначена для запуска из прерывания чтобы сократить задержку на обработку 
+/*! \brief Уведомить планировщик о необходимости передачи управления данному процессу.
+	
+эта функция предназначена для запуска из прерывания чтобы сократить задержку на обработку 
 \todo сделать глобальную переменную osThreadId osThreadCurrent = current_thread;
 \todo сделать функцию макросом
  */
@@ -524,6 +543,7 @@ int osThreadErrno (osThreadId thread_id, int err_no)
 void  PendSV_Handler(void) PRIVILEGED_FUNCTION;
 __attribute__((naked)) void PendSV_Handler();
 /*!  \brief переключение контекстов задач
+
 Cortex-M3 Cortex-M4 Cortex-M4F Cortex-M7 Cortex-M23 Cortex-M33
  */
 void PendSV_Handler()
@@ -618,6 +638,7 @@ void PendSV_Handler()
 #  endif
 #endif
 }
+/*! \brief Системный планировщик задач */
 unsigned int * osThreadScheduler(unsigned int * stk)
 {
 	current_thread->sp = stk;
@@ -748,7 +769,13 @@ For implementations without the Security Extension;
 
  */
 __attribute__((noinline)) void osEventWait (osEvent *event, uint32_t interval);
-/*! \todo сделать время в микросекундах */
+/*!	\brief Ожидание событие
+
+	Передает управление операционной системе с целью ожидания события.
+
+	\note не рекомендуется использовать напрямую
+	\todo сделать время в микросекундах 
+ */
 void osEventWait (osEvent *event, uint32_t interval)
 {
 	svc(SVC_EVENT_WAIT);
@@ -762,12 +789,18 @@ void osEventWait (osEvent *event, uint32_t interval)
     \defgroup _signals Signal Management
     \{
  */
+/*! \brief 
+	\param 
+ */
 int32_t osSignalSet (osThreadId thread_id, int32_t signals)
 {
 	// если тред не найден return 0x80000000;
 	if (thread_id==NULL) return 0x80000000;
 	return atomic_fetch_or((volatile int *)&thread_id->process.signals, (signals & OS_SIGNAL_MASK));
 }
+/*! \brief 
+	\param 
+ */
 int32_t osSignalClear (osThreadId thread_id, int32_t signals)
 {
 	// если тред не найден return 0x80000000;
@@ -793,6 +826,13 @@ int32_t* osSignalRef (osThreadId thread_id, int32_t signal)
 #endif
 //  ==== Signal Management ====
 #if (defined(osFeature_ThreadFlags) && (osFeature_ThreadFlags!=0))
+/*! \ingroup _system
+    \defgroup _flags RTOSv2 Signal Management 
+    \{
+ */
+/*! \brief 
+	\param 
+ */
 uint32_t osThreadFlagsWait(uint32_t flags, uint32_t options, uint32_t timeout)
 {
 //	if (flags==0) flags = ~0;
@@ -814,4 +854,5 @@ uint32_t osThreadFlagsGet(osThreadId_t thread_id)
 {
 	return (thread_id->process.signals & OS_SIGNAL_MASK);
 }
+/*! \} */
 #endif
