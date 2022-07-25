@@ -5,8 +5,8 @@
 
 typedef struct _List List_t;
 struct _List {
-    void* data;
     List_t* next;
+    void* data;
 };
 /*
 struct os_AsyncQ_cb {
@@ -41,7 +41,7 @@ void* osAsyncQueueGet(osAsyncQueue_t* queue)
         }
     }
     if (queue->head) {
-        volatile List_t* list = queue->head;
+        List_t* list = queue->head;
         queue->head = list->next;
         data = list->data;
         g_slice_free1(sizeof(List_t), (void*)list);

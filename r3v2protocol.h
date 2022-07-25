@@ -134,8 +134,8 @@
 
 
 #define R3_SNMP_SOFT_RESET		0x70
-#define R3_SNMP_SHOW_VERSION    0x71
-#define R3_SNMP_GET_VERSION    	0xF1
+#define R3_SNMP_SHOW_VERSION    0x71	//!< Показать версию системы Trace
+#define R3_SNMP_GET_VERSION    	0xF1	//!< Возвращает строку -- версию системы
 #define R3_SNMP_GET_R3	    	0xF2	//!< Возвращает маску команд
 #define R3_SNMP_SHOW_MODULES    0x72    //!< Выводит список активных модулей
 #define R3_SNMP_SHOW_ARP_TABLE  0x73
@@ -149,6 +149,7 @@
 
 #define R3_SNMP_CACHE_ENABLE    0x7A //!< включить кеш
 
+#define R3_SNMP_TRACE			0xFE//!< Запросить фрагмент журнала
 #define R3_SNMP_SET_REG			0x7F
 #define R3_SNMP_GET_REG			0xFF
 

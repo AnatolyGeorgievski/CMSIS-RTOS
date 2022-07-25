@@ -91,11 +91,6 @@ void  SysTick_Handler(void)
 		}
     }
 }
-/* увеличивается монотонно */
-uint32_t HAL_GetTick()
-{
-    return system_ticks;
-}
 /*  функция clock() определена в С11 <time.h> с параметром 
 см макрос CLOCKS_PER_SEC
 */
@@ -130,6 +125,19 @@ int clock_gettime(clockid_t clock_id, struct timespec *ts)
 	} while (!atomic_compare_and_exchange(ptr, ts->tv_nsec, ts->tv_nsec));// проверить что изменилось 
 */
 }
+/*! \brief function return the resolution of a specified clock.
+ */
+int clock_getres(clockid_t clock_id, struct timespec *res)
+{
+	res->tv_sec =0;
+	res->tv_nsec =1000*BOARD_RTC_PERIOD;
+	return 0;
+}
+int clock_settime(clockid_t clock_id, const struct timespec *tp)
+{
+	//! \todo наверное надо через SVC выставлять
+	return 0;
+}
 time_t time(time_t* ref)
 {
 	if (ref!=NULL) {
@@ -138,7 +146,7 @@ time_t time(time_t* ref)
 	return system_uptime.tv_sec;
 //	return SysTick->LOAD - SysTick->VAL;
 }
-#if 0 //
+#if 0 //Это часть стандарта с11
 int timespec_get(struct timespec *ts, int base) 
 {
 	*ts = system_uptime;// атомарно?
@@ -171,7 +179,7 @@ uint32_t osKernelSysTick (void)
 #endif
 _Noreturn static void _Fault(const char *str, uint32_t value)
 {
-	debug("!");
+//	debug("!");
 	BOARD_SAFE_PINS;
 //	char* str = "HardFault\r\n";
 	debug(str);
@@ -180,6 +188,10 @@ _Noreturn static void _Fault(const char *str, uint32_t value)
 	debug(s);
 	while(1);
 }
+/* DFSR, Debug Fault Status Register
+void DebugMon_Handler(){
+	
+}*/
 #if defined(__ARM_ARCH_8M_BASE__)
 _Noreturn void HardFault_Handler()
 {
@@ -209,7 +221,12 @@ _Noreturn void MemManage_Handler()
 }
 _Noreturn void UsageFault_Handler()
 {
-	_Fault("UsageFault\r\nCFSR", SCB->CFSR);
+#if defined(__ARM_ARCH_8M_MAIN__)
+	_Fault("UsageFault\r\nUFSR", SCB->UFSR);// This register is RES0 if the Main Extension is not implemented
+#else
+	_Fault("UsageFault\r\nSFSR", SCB->CFSR);
+#endif
+/* SCB_CFSR_DIVBYZERO_Msk: Divide by Zero
 /*	BOARD_SAFE_PINS;
 	const char* str = "UsageFault\r\n";
 	debug(str); */

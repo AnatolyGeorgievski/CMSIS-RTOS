@@ -1,5 +1,6 @@
 /*! \defgroup _magma Алгоритмы блочного шифрования Magma
-	Национальый алгоритм блочного шифрования с длиной блока 64 бит. TC26 магма
+	Национальный алгоритм блочного шифрования с длиной блока 64 бит. TC26 магма
+	
 	\see ГОСТ Р 34.12-2015 Информационная технология. КРИПТОГРАФИЧЕСКАЯ ЗАЩИТА ИНФОРМАЦИИ. Блочные шифры
 	\see http://tc26.ru
 
@@ -7,11 +8,11 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
-/* 5.1.1 Нелинейное биективное преобразование */
 
 #ifdef __ARM_NEON
 #include <arm_neon.h>
 #endif
+/* 5.1.1 Нелинейное биективное преобразование */
 static const 
 uint8_t sbox[8][16] = {// см. Gost28147_TC26_paramZ
 /* π0' = */ {12, 4, 6, 2, 10, 5, 11, 9, 14, 8, 13, 7, 0, 3, 15, 1},
@@ -168,7 +169,12 @@ static uint64_t magma_encrypt1(const uint32_t *K, uint64_t v){
 	return (uint64_t)n1<<32 | n2;
 }
 #endif
-	
+/*!
+	\brief Алгоритм зашифрования
+	\ingroup _magma
+
+	\param 
+ */	
 static uint64_t magma_encrypt(const uint32_t *Key, uint64_t v){
 	uint32_t n1 = v, n2 = v>>32;
 	const uint32_t *K=Key;

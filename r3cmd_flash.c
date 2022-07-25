@@ -23,6 +23,7 @@ Cценарий 2) Прошивка заливается в два этапа: �
 //#include <string.h>
 #define FLASH_SIGNAL 21
 #define R3_SNMP_FLASH_ISP 	0x61
+#define R3_SNMP_FLASH_CRC 	0xE2
 #define R3_SNMP_FLASH_COPY 	0x62
 
 extern void iflash_bootloader(uint32_t offset, size_t size);
@@ -103,7 +104,7 @@ static int r3_flash(uint8_t *buffer, int *length)
 			osSignalClear(osThreadGetId(),1<<FLASH_SIGNAL);
 			iflash_close(vh); 
 		}
-		vh = NULL; record_offset=0; record_number=0;
+		vh = NULL; record_offset=0; record_size =0; record_number=0;
 		break;
 	default:
 		printf("iFLASH Abort %02X %d\r\n", code, *length);
@@ -112,6 +113,16 @@ static int r3_flash(uint8_t *buffer, int *length)
 	}
 	*length = 0;
 	return status|record_number;
+}
+static int r3_flash_verify(uint8_t * buf, int* length)
+{
+	uint32_t size = *(uint32_t*)buf;
+	void* data = iflash_recv(NULL, 4); // блок 4, первые 4 резервируем на конфиг
+	CRC32 crc = CRC32_init(0);
+	crc = crc_from_block(crc, data, size);
+	crc = CRC32_finalize(crc);
+	*(uint32_t*)buf = crc;
+	*length = 4;
 }
 /*! \brief выполнить проверку CRC от новой прошивки во флеш и выполнить перезагрузку. 
  */
@@ -135,9 +146,10 @@ static int r3_flash_copy(uint8_t * buf, int* length)
 		//extern void iflash_bootloader(uint32_t block, uint32_t size);
 		iflash_bootloader(4<<9, size);
 	}
-	*length = 0;
+	
 	return R3_ERR_OK;
 }
 
 R3CMD(R3_SNMP_FLASH_ISP, r3_flash);
+R3CMD(R3_SNMP_FLASH_CRC, r3_flash_verify);
 R3CMD(R3_SNMP_FLASH_COPY, r3_flash_copy);

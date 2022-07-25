@@ -66,7 +66,20 @@ extern "C"
 {
 #endif
  
- 
+typedef struct  {
+  enum {
+	  osEventComplete,
+	  osEventSignal,
+	  osEventSemaphore,
+	  osEventTimeout
+  }                 status;     ///< status code: event or error information
+  union  {
+    uint32_t                    v;     ///< message as 32-bit value
+    void                       *p;     ///< message or mail as void pointer
+    int32_t               signals;     ///< signal flags
+  } value;                             ///< event value
+} osEvent;
+void osEventWait (osEvent *event, uint32_t millisec);
 //  ==== Enumerations, structures, defines ====
  
 /// Version information.

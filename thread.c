@@ -92,18 +92,18 @@ MCAPI provides three modes of communication: messages, packets, scalars
 extern void* _estack[]; // вершина стека, см в файле (CHIPX).ld
 typedef struct _StackPool StackPool;
 struct _StackPool {
-	void* base;
+//	void* base;
 //	int item_bits;	// не более <=32
 	volatile unsigned int map[1]; // не более 32 тредов
 };
 //osSemaphoreDef(thread_pool_count) = {osFeature_ThreadCount};// свобдных слотов для запуска тредов
 #define STACK_POOL_BITS 10
 
-static StackPool stack_pool = {.base=_estack};
+static StackPool stack_pool = {/*.base=_estack*/{0}};
 /*!	\brief выделение памяти под стек, число стеков ограничено
 
  */
-void* stack_pool_base = _estack;
+static void* stack_pool_base = _estack - 0x400;
 static void *osStackAlloc (int size)
 {
 	StackPool* pool = &stack_pool;
@@ -113,7 +113,7 @@ static void *osStackAlloc (int size)
 		value = atomic_int_get(ptr);
 		idx = __builtin_ctz(~value);
 	} while (!atomic_int_compare_and_exchange(ptr, value, value| (1UL<<idx)));
-	uint8_t* data=  (uint8_t*)(stack_pool_base - 0x400)- (idx << STACK_POOL_BITS);
+	uint8_t* data=  (uint8_t*)(stack_pool_base)- (idx << STACK_POOL_BITS);
 //	printf("osStackAlloc: %08X idx:%d\n", data, idx);
 //	printf("osStackDebug: %08X\n", pool->map[0]);
 	return data;
@@ -123,7 +123,7 @@ static void osStackFree (void* stk, int size)
 {
 	
 	StackPool* pool = &stack_pool;
-	int idx = ((uint8_t*)(stack_pool_base - 0x400) - (uint8_t*)stk) >> STACK_POOL_BITS;// проверить правильность выделения
+	int idx = ((uint8_t*)(stack_pool_base) - (uint8_t*)stk) >> STACK_POOL_BITS;// проверить правильность выделения
 //	printf("osStackFree: %08X idx:%d\r\n", stk, idx);
 	(void) atomic_fetch_and(&pool->map[0], ~(1UL<<idx));
 }
@@ -366,10 +366,12 @@ thrd_t thrd_current(void)
 int thrd_joint(thrd_t thr, int *res)
 {
 	// найти тред и ждать его завершения
-	// evt= {.status=osEventComplete, .value={.p=&thr->exec}};// ждем когда в ноль обратится статус события
-	// osEventWait(evt)
+	osEvent event= {.status=osEventComplete, .value={.p=thr}};// ждем когда в ноль обратится статус события
+	osEventWait(&event, osWaitForever);
+	if (event.status==osEventComplete) return thrd_success;
 	//if (res) *res = thr->errno;
 	// free(thr);
+	return thrd_error;
 }
 /*!	\brief Исключить тред из списка
 	\ingroup _thrd
@@ -433,7 +435,7 @@ osThreadId osThreadCreate (const osThreadDef_t *thread_def, void *args)
 //	sp += thread_def->stacksize>>2;
 //	printf("ThCreate %08X - %08X\n", (uint32_t)tcb, (uint32_t)sp);
 	
-	uint32_t* sp = NULL;//osStackAlloc(thread_def->stacksize);
+//	uint32_t* sp = NULL;//osStackAlloc(thread_def->stacksize);
 
 	osThreadId tcb = NULL;
 	thrd_create(&tcb, thread_def->pthread, args);

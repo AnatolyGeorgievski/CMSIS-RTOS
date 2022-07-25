@@ -56,6 +56,8 @@ static inline int semaphore_leave(volatile int * ptr)
     return atomic_fetch_add(ptr, 1);
     //atomic_mb();// сбрасываем ?
 }
+//
+#define SEM_FAILED NULL
 
 typedef volatile int32_t sem_t;
 int    sem_close(sem_t *);
