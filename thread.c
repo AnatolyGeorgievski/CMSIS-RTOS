@@ -103,7 +103,7 @@ static StackPool stack_pool = {/*.base=_estack*/{0}};
 /*!	\brief выделение памяти под стек, число стеков ограничено
 
  */
-static void* stack_pool_base = _estack - 0x400;
+static void* stack_pool_base = _estack - 0x400;// Уже выделен под MSP
 static void *osStackAlloc (int size)
 {
 	StackPool* pool = &stack_pool;
@@ -132,7 +132,7 @@ void osStackDebug()
 	StackPool* pool = &stack_pool;
     printf("osStackDebug: %08X\n", pool->map[0]);
 }
-
+// функции могут вызваться только из SVC
 static void svc_handler_yield   (unsigned int *frame, int svc_number) PRIVILEGED_FUNCTION;
 static void svc_handler_exit    (unsigned int *frame, int svc_number) PRIVILEGED_FUNCTION;
 static void svc_handler_usleep  (unsigned int *frame, int svc_number) PRIVILEGED_FUNCTION;
@@ -142,34 +142,11 @@ static void svc_handler_event_wait(unsigned int *frame, int svc_number) PRIVILEG
 static TCB main_thread = {.sp = NULL, .next=&main_thread, 
 	.process.event.status = osEventRunning,
 	.process.signals = 0, /*.errno=0,*/.priority=osPriorityNormal};
+// Эти переменные должны быть доступны на чтение, но не на изменение
+
 static TCB *current_thread = &main_thread; //!< указатель на дескриптор треда
 static TCB *tcb_list = &main_thread; //!< указатель на дескриптор треда. Первый элемент списка это процесс "main", он считается привелегированным и никогда не выкидывается из списка
 
-#if 0
-static unsigned char IP_Addr[4] = {192,168,2,144};
-#define ARP_REQUEST			0x0001
-
-void task1(void const* data)
-{
-	//if () printf("Once %d ", (unsigned int)data);
-	int64_t count=0;
-	while (count<8){
-//		if ((count&0xFFFFFFULL) == 0)
-        {
-//            printf("T1 %d\n", HAL_GetTick());
-            osDelay(2000);
-            printf("=T1 %lu\n", HAL_GetTick());
-			int res = arp_request(/*iface, */__REV16(ARP_REQUEST), IP_Addr, NULL);
-
-			if (res != 0) {
-				printf("=T1 err\n");
-			}
-		}
-		count++;
-	}
-}
-//osThreadDef(task1,osPriorityNormal,0,OS_CCM_SLICE);
-#endif // test
 
 /*! \brief выполнить переключение задач на выходе из ISR
 
@@ -242,7 +219,7 @@ static void svc_handler_event_wait(unsigned int *frame, int svc_number)
 	TCB* tcb = TCB_PTR(current_thread);
 	if (interval!=osWaitForever) {
 		event->status |= osEventTimeout;
-		tcb->process.wait.timeout  = osKernelSysTickMicroSec(interval*1000);
+		tcb->process.wait.timeout  = osKernelSysTickMicroSec(interval);// todo выразить в микросекундах
 		tcb->process.wait.timestamp= osKernelSysTick();
 	}
 	// event->status &=~osEventRunning;// когда ждем бит(статус) не выставлен
@@ -260,7 +237,7 @@ osStatus osThreadInit(void)
     svc_handler_callback(svc_handler_kill,  SVC_KILL);
 //    svc_handler_callback(svc_handler_kill,  SVC_EXEC);
 
-#if 0 //def PSP_THREAD_MODE // переключились PSP стек
+#if 0 //def PSP_THREAD_MODE // переключились PSP стек -- это происходит в начальной загрузке
 	uint32_t* sp = osStackAlloc(0x400);// Выделяем стек для Handler mode
 	uint32_t msp = __get_MSP();
 	__set_PSP(msp);
@@ -278,30 +255,6 @@ osStatus osThreadInit(void)
 
 #define C11_THRD
 
-#if 0
-static inline void* osAsyncQueueWait(volatile void** ptr, uint32_t millisec)
-{
-	osEvent evt = {.status=osEventAsyncQueue, .value={.p=ptr}};// ждем когда этот указатель будет не нуль
-	osEventWait(&evt, millisec);
-	return evt.value.p;
-}
-/*! таймеры треда  используются для служб */ 
-uint32_t osProcessTimerStart(osProcessId process, uint32_t timeout)
-{
-	process->wait.timeout   = osKernelSysTickMicroSec(timeout);
-	process->wait.timestamp = osKernelSysTick();
-	return atomic_fetch_or (&process->event.status,  osEventTimeout);
-}
-uint32_t osProcessTimerStop(osProcessId process)
-{
-	return atomic_fetch_and(&process->event.status, ~osEventTimeout);
-}
-/* используется для службой чтобы настраивать свои события */
-osEvent* osProcessGetEvent(osProcessId thr)
-{
-	return &thr->event;
-}
-#endif
 /*! \ingroup _thrd 
 	\breif Создать контекст и запустить процесс
 	\param thrd - идентификатор треда или NULL
@@ -312,26 +265,27 @@ int thrd_create(thrd_t *thrd, thrd_start_t func, void *arg)
 {
 	thrd_t thr = NULL;
 	if (thrd) thr = *thrd;
+	// способ выделения блоков памяти под треды требует Shared в кластере
 	if (thr==NULL) thr = malloc(sizeof(struct os_thread_cb));
 	thr->priority = osPriorityNormal;
 	//thr->errno = 0;
-	thr->sp = NULL;
+	thr->sp = NULL;// стек не выделяется, пока задача не запущена
 	thr->process.signals = 0; // нет сигналов
 	thr->process.event = (osEvent){.status=osEventRunning, };
 	thr->process.arg  = arg;
 	thr->process.func = func;
 	thr->error_no = 0;
-	thr->tss=NULL;
+	thr->tss=NULL;	// инициализация Thread Specific Storage
+	thr->cond=NULL; // инициализация Condition используется для ожидания завершения 
 	volatile void** ptr= (volatile void**)&(current_thread->next);
-	do {// атомарно записываем элемент в список задач (есть страх что current->next изменится, current - это мой он не изменится пока я не вышел)
+	do {// атомарно записываем элемент в список задач (есть страх что current->next изменится, current - это мой он не изменится пока я не вышел.
 		thr->next = atomic_pointer_get(ptr);
 		atomic_mb();
 	} while (!atomic_pointer_compare_and_exchange(ptr, thr->next, thr));
 	if(thrd) *thrd = thr;
 	return thrd_success;
 }
-/*!	\brief Завершить выполнение потока
-	\ingroup _thrd
+/*!	\brief Удалить задачу из списка активных задач
 	\param args - это то что возвращается из треда
 	\return нет возврата
 	
@@ -342,47 +296,31 @@ The order in which destructors are invoked is unspecified
 */
 _Noreturn void thrd_exit(int res)
 {
-extern void  tss_destroy(tss_t tss);
-	
+	thrd_t self = thrd_current();
 #if 0
-	if (current_thread->tss)
-		tss_destroy(current_thread->tss);
+	extern void  tss_destroy(tss_t tss);
+	if (self->tss)
+		tss_destroy(self->tss);
 #endif
-	current_thread->process.result = res;
-    __ASM volatile ("ldr r0, %[tcb]"::[tcb]"m"(current_thread):"r0");
-    svc(SVC_KILL);
+	self->process.result = (intptr_t)res;
+    svc1(SVC_KILL, self);
 	while(1);
 }
-/*!	\brief Идентификация активного треда
-	\ingroup _thrd
- */
 thrd_t thrd_current(void)
 { 
 	return current_thread; 
 }
-/*!	\brief Ожидать завершения треда
-	\ingroup _thrd
- */
 int thrd_joint(thrd_t thr, int *res)
 {
-	// найти тред и ждать его завершения
-	osEvent event= {.status=osEventComplete, .value={.p=thr}};// ждем когда в ноль обратится статус события
-	osEventWait(&event, osWaitForever);
-	if (event.status==osEventComplete) return thrd_success;
-	//if (res) *res = thr->errno;
-	// free(thr);
+	mtx_t *mutex=NULL;
+	cnd_wait((cnd_t *)&thr->cond, mutex);
 	return thrd_error;
 }
-/*!	\brief Исключить тред из списка
-	\ingroup _thrd
- */
 int thrd_detach(thrd_t thr) 
 {
+	cnd_destroy((cnd_t *)&thr->cond);
 	return thrd_success;
 }
-/*!	\brief Кооперативно (добровольно) передать управление
-	\ingroup _thrd
- */
 void thrd_yield(void)
 {
 	svc(SVC_YIELD);
@@ -407,7 +345,7 @@ int atexit(void (*func)(void))
 */
 /*! \brief В довершение процесса выполняется указанная функция 
 	\ingroup _thrd 
-	\req #include <errno.h>
+	\required #include <errno.h>
  */
 int* __errno()
 {
@@ -415,7 +353,6 @@ int* __errno()
 }
 
 /*!	\brief Создать процесс
-	\ingroup _thread
     \note функция может запускаться до инициализации ядра.
 	
 	Приложения: 
@@ -444,16 +381,13 @@ osThreadId osThreadCreate (const osThreadDef_t *thread_def, void *args)
 }
 
 /*!	\brief Удалить задачу из списка активных задач
-	\ingroup _thread
 	\param args - это то что возвращается из треда
 	\return нет возврата
 */
 void  osThreadExit();
 
-__attribute__((noinline)) 
-osStatus osThreadTerminate (osThreadId thread_id);
+__attribute__((noinline)) osStatus osThreadTerminate (osThreadId thread_id);
 /*!	\brief Удалить задачу из списка активных задач
-	\ingroup _thread
 
 	\todo надо запретить одновременное исполнение операции osThreadTerminate, в случае
 	\note нельзя вызывать функцию для себя
@@ -468,7 +402,8 @@ osStatus osThreadTerminate (osThreadId thread_id);
  */
 osStatus osThreadTerminate (osThreadId thread_id)
 {
-    svc(SVC_KILL);
+	TCB* tcb = TCB_PTR(thread_id);
+    svc1(SVC_KILL, tcb);
     return osOK;
 }
 /*! \brief запросить идентификатор активного треда
@@ -509,9 +444,7 @@ osStatus osThreadYield (void)
 /*! \} */
 
 
-/*! \brief Уведомить планировщик о необходимости передачи управления данному процессу.
-	
-эта функция предназначена для запуска из прерывания чтобы сократить задержку на обработку 
+/*! эта функция предназначена для запуска из прерывания чтобы сократить задержку на обработку 
 \todo сделать глобальную переменную osThreadId osThreadCurrent = current_thread;
 \todo сделать функцию макросом
  */
@@ -545,7 +478,6 @@ int osThreadErrno (osThreadId thread_id, int err_no)
 void  PendSV_Handler(void) PRIVILEGED_FUNCTION;
 __attribute__((naked)) void PendSV_Handler();
 /*!  \brief переключение контекстов задач
-
 Cortex-M3 Cortex-M4 Cortex-M4F Cortex-M7 Cortex-M23 Cortex-M33
  */
 void PendSV_Handler()
@@ -640,18 +572,45 @@ void PendSV_Handler()
 #  endif
 #endif
 }
-/*! \brief Системный планировщик задач */
+/*! \brief Планировщик процессов 
+	\param [in] stk указатель на стек процесса
+	\return указатель на стек процесса который будет исполняться после переключения задач.
+	
+
+Планировщик вызывается по случаю слишком долго исполняется отдельный процесс, по времени. При вызове функции Yield()
+Или по событию. 
+
+В данной версии ОС ожидание процесса - это флаги событий и семафоры.
+Ожидание Мьютексов, Семафоров, ожидание очередей собщений, пулов памяти реализовано на семафорах. Семафоры и флаги событий отданы в приложение и реализованы на атомарных операциях. 
+
+Синхронизация приложений по готовности - это ожидание Condition на своем мьютексе.
+ */
 unsigned int * osThreadScheduler(unsigned int * stk)
 {
-	current_thread->sp = stk;
+	current_thread->sp = stk;// вынести эту операцию в PendSV
 	// планировщик задач
+	thrd_t thr = NULL;
 	do {
-		current_thread = current_thread->next; // по круговому списку задач, всегда в списке одна задача "main"
-        osEvent *event = &current_thread->process.event;
+		/* чтобы можно было запускать несколько плнировщиков, это должна быть служба, 
+		контекст привязан к ядру для которого выполняется планирование, доступ к списку задач - атомарный
+		*/
+#if 0
+		// по круговому списку задач, всегда в списке одна задача "main"
+		volatile void** ptr = (volatile void** )&current_thread;// общая очередь для кластера ядер
+		do {
+			thr = atomic_pointer_get(ptr);// __LDREX
+		} while (!atomic_pointer_compare_and_exchange(ptr, thr, thr->next));// __STREX
+		thr = thr->next;
+#else
+		thr = current_thread = current_thread->next; 
+#endif
+        osEvent *event = &thr->process.event;
         if (event->status & osEventRunning) break;
 		
         if (event->status & (osEventSignal)) 	{// ожидаем сигналы
-			uint32_t signals = current_thread->process.signals & event->value.signals;
+//			volatile int* ptr = event->value.p;
+//			uint32_t signals = *ptr & event->value.signals;
+			uint32_t signals = thr->process.signals & event->value.signals;
             if (signals){
 				//if ((event->status & osEventWaitAll)==0 || (signals==event->value.signals))
 				{
@@ -661,17 +620,6 @@ unsigned int * osThreadScheduler(unsigned int * stk)
 				}
             }
         } 
-#if (defined(osFeature_AsyncQueue) && (osFeature_AsyncQueue!=0))
-		else
-        if (event->status & (osEventAsyncQueue)){// очереди, по поведению похож на Mutex, похож на сигналы треда
-			void* ptr = atomic_pointer_exchange((void**)event->value.p, NULL);
-            if (ptr != NULL) { // есть объект в очереди
-				event->value.p= ptr;// возвращаем указатель на объект из очереди
-                event->status = osEventAsyncQueue;
-                break;
-            }
-        }
-#endif
 		else
         if (event->status & (osEventSemaphore)) {// выделение памяти из пула, семафоры и мьютексы
             volatile int* ptr = event->value.p;
@@ -685,27 +633,26 @@ unsigned int * osThreadScheduler(unsigned int * stk)
 skip_event:
         if (event->status & (osEventTimeout)) 	{// ожидаем таймаут, можем использовать DWT->CYCCOUNT
 			uint32_t system_timestamp = osKernelSysTick();
-            if ((uint32_t)(system_timestamp - current_thread->process.wait.timestamp)>=current_thread->process.wait.timeout){
-                // 01.02.2018 event->value.v = system_timestamp - current_thread->wait.timestamp; // возвращаем задержку
+            if ((uint32_t)(system_timestamp - thr->process.wait.timestamp)>=thr->process.wait.timeout){
+                // 01.02.2018 event->value.v = system_timestamp - thr->wait.timestamp; // возвращаем задержку
                 event->status = osEventTimeout|osEventRunning;
                 break;
             }
         }
-	} while (1);//(current_thread->wait.events & current_thread->events)==0);// условие выхода из ожидания: событие настало
-//	current_thread->event = NULL; // автоматически выключаем
-	atomic_free();// Clear Exclusive Monitor
-	if (current_thread->sp==NULL) {//стек не выделен!
-		unsigned int *sp = osStackAlloc(0x400/*current_thread->def->stacksize*/);
+	} while (1);//(thr->wait.events & thr->events)==0);// условие выхода из ожидания: событие настало
+	atomic_free();// Clear Exclusive Monitor -- эта операция аппаратно зависима
+	if (thr->sp==NULL) {//стек не выделен!
+		unsigned int *sp = osStackAlloc(0x400/*thr->stacksize*/);
 		// надо ли резервировать место для S0-15, FPSCR 
 			// инициализация стека R0-R3,R12,LR,PC,xPSR
 		*(--sp) = (uint32_t)0x01000000;		// xPSR Thumb state
-		*(--sp) = (uint32_t)current_thread->process.func;//|1;		// PC start function |1 -Thumb mode
+		*(--sp) = (uint32_t)thr->process.func;//|1;		// PC start function |1 -Thumb mode
 		*(--sp) = (uint32_t)osThreadExit;//|1;	// LR stop function |1 -Thumb mode
 		*(--sp) = 0; //R12
 		*(--sp) = 0; //R3
 		*(--sp) = 0; //R2
-		*(--sp) = 0; //(uint32_t)&current_thread->process.event; //R1
-		*(--sp) = (uint32_t)current_thread->process.arg; //R0
+		*(--sp) = 0; //(uint32_t)&thr->process.event; //R1
+		*(--sp) = (uint32_t)thr->process.arg; //R0
 #ifdef PSP_THREAD_MODE
 # if defined(__ARM_ARCH_8M_BASE__) 
 		*(--sp) = (uint32_t)0xFFFFFFBC; //PSP Thread no-FPU, Cortex-M23/33 wo security extention
@@ -715,8 +662,8 @@ skip_event:
 #else
 		*(--sp) = (uint32_t)EXC_RETURN_THREAD_MSP; // 0xFFFFFFF9 MSP Thread no-FPU, 0xFFFFFFE9 - MSP w-FPU
 #endif
-		sp-=8;// R4-R11 в любой последовательности
-		current_thread->sp = sp;
+		sp-=8;// резервируем место на R4-R11 в любой последовательности
+		thr->sp = sp;
 #if 0 // Был раньше вариант быстрого выхода
 		__asm volatile (
 #if 0 // использовать PSP
@@ -730,7 +677,7 @@ skip_event:
 		::"r"(sp):"memory");
 #endif
 	}
-	return current_thread->sp;
+	return thr->sp;
 /* Из документации на Cortex-M3/M4
 0xFFFFFFF1 
 	Return to Handler mode, exception return uses non-floating-point state from MSP and execution uses MSP after return.
@@ -771,17 +718,20 @@ For implementations without the Security Extension;
 
  */
 __attribute__((noinline)) void osEventWait (osEvent *event, uint32_t interval);
-/*!	\brief Ожидание событие
-
-	Передает управление операционной системе с целью ожидания события.
-
-	\note не рекомендуется использовать напрямую
-	\todo сделать время в микросекундах 
- */
+/*! \todo сделать время в микросекундах */
 void osEventWait (osEvent *event, uint32_t interval)
 {
-	svc(SVC_EVENT_WAIT);
+	svc2(SVC_EVENT_WAIT, event, interval*1000);
 	*event = current_thread->process.event;// вот это копирование можно исключить!!
+	//return (event->status & osEventTimeout)?thrd_timedout:thrd_success;
+}
+/* Единственное место где выполняется преобразование timespec в интервал */
+osStatus osEventTimedWait (osEvent *event, const struct timespec* restrict ts)
+{
+	//clock_gettime(CLOCK_REALTIME, &now);
+	uint32_t interval = __QADD(ts->tv_sec*1000000ULL,ts->tv_nsec/1000) - clock();// надо оптимизировать и исключить отрицательные значения интервала
+	osEventWait (event, interval);
+	return (event->status & osEventTimeout)?thrd_timedout:thrd_success;
 }
 /*! \} */
 
@@ -791,22 +741,16 @@ void osEventWait (osEvent *event, uint32_t interval)
     \defgroup _signals Signal Management
     \{
  */
-/*! \brief 
-	\param 
- */
 int32_t osSignalSet (osThreadId thread_id, int32_t signals)
 {
 	// если тред не найден return 0x80000000;
-	if (thread_id==NULL) return 0x80000000;
+	//if (thread_id==NULL) return 0x80000000;
 	return atomic_fetch_or((volatile int *)&thread_id->process.signals, (signals & OS_SIGNAL_MASK));
 }
-/*! \brief 
-	\param 
- */
 int32_t osSignalClear (osThreadId thread_id, int32_t signals)
 {
 	// если тред не найден return 0x80000000;
-	if (thread_id==NULL) return 0x80000000;
+	//if (thread_id==NULL) return 0x80000000;
 	return atomic_fetch_and((volatile int *)&thread_id->process.signals, ~(signals & OS_SIGNAL_MASK));
 }
 #if 0
@@ -828,13 +772,6 @@ int32_t* osSignalRef (osThreadId thread_id, int32_t signal)
 #endif
 //  ==== Signal Management ====
 #if (defined(osFeature_ThreadFlags) && (osFeature_ThreadFlags!=0))
-/*! \ingroup _system
-    \defgroup _flags RTOSv2 Signal Management 
-    \{
- */
-/*! \brief 
-	\param 
- */
 uint32_t osThreadFlagsWait(uint32_t flags, uint32_t options, uint32_t timeout)
 {
 //	if (flags==0) flags = ~0;
@@ -856,5 +793,4 @@ uint32_t osThreadFlagsGet(osThreadId_t thread_id)
 {
 	return (thread_id->process.signals & OS_SIGNAL_MASK);
 }
-/*! \} */
 #endif

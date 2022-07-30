@@ -17,7 +17,16 @@ enum {
 /*! \brief аргумент системного запроса, TODO через прерывание SVC */
 #define svc_arg(n,value) 
 /*! \brief выполнить системный запрос, через прерывание SVC */
-#define svc(code) __asm volatile ("svc %[immediate]"::[immediate] "I" (code):"r0")
+#define svc(code) __asm volatile ("svc %[immediate]"::[immediate] "I" (code):"r0","memory")
+#define svc1(code,arg) __extension__({\
+	register uint32_t __R0 __asm("r0") = (uint32_t)(arg);\
+	__asm volatile ("svc %[immediate]":"=r"(__R0):[immediate] "I" (code), "r"(__R0):"memory"); \
+	__R0;})
+#define svc2(code,a0,a1) __extension__({\
+	register uint32_t __R0 __asm("r0") = (uint32_t)(a0);\
+	register uint32_t __R1 __asm("r1") = (uint32_t)(a1);\
+	__asm volatile ("svc %[immediate]":"=r"(__R0):[immediate] "I" (code), "r"(__R0), "r"(__R1):"memory"); \
+	__R0;})
 
 static inline void __YIELD()
 {

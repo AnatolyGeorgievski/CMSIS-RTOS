@@ -60,6 +60,7 @@
  
 #include <stdint.h>
 #include <stddef.h>
+#include <time.h>
  
 #ifdef  __cplusplus
 extern "C"
@@ -78,8 +79,7 @@ typedef struct  {
     void                       *p;     ///< message or mail as void pointer
     int32_t               signals;     ///< signal flags
   } value;                             ///< event value
-} osEvent;
-void osEventWait (osEvent *event, uint32_t millisec);
+} osEvent_t;
 //  ==== Enumerations, structures, defines ====
  
 /// Version information.
@@ -215,7 +215,9 @@ typedef enum {
   osErrorISR                = -6,         ///< Not allowed in ISR context: the function cannot be called from interrupt service routines.
   osStatusReserved          = 0x7FFFFFFF  ///< Prevents enum down-size compiler optimization.
 } osStatus_t;
- 
+
+void osEventWait (osEvent_t *event, uint32_t millisec);
+int osEventTimedWait (osEvent_t *event, const struct timespec* restrict ts);
  
 /// \details Thread ID identifies the thread.
 typedef void *osThreadId_t;

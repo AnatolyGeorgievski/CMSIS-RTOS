@@ -164,9 +164,11 @@ used throughout the whole project.
 #define osFeature_SysTick      1       ///< osKernelSysTick functions: 1=available, 0=not available
 
 #define PRIVILEGED_FUNCTION __attribute__((section(".text.privileged")))
+#define PRIVILEGED __attribute__((section(".data.privileged")))
 
 #include <stdint.h>
 #include <stddef.h>
+#include <time.h>
 
 #ifdef  __cplusplus
 extern "C"
@@ -350,11 +352,6 @@ typedef struct  {
 #endif
 } osEvent;
 
-typedef struct _GCond           GCond;
-struct _GCond
-{
-};
-
 struct _DataUnit {
 	uint8_t* buffer;
 	uint16_t size;
@@ -419,6 +416,7 @@ static inline void debug (const char * str){
 	void debug (const char * str);
 #endif // __arm__
 void osEventWait (osEvent *event, uint32_t millisec);
+osStatus osEventTimedWait (osEvent *event, const struct timespec* restrict ts);
 
 
 //  ==== Thread Management ====

@@ -62,7 +62,7 @@ static BlockMedia * default_media_driver
 
 static int r3_sys_get_version(unsigned char* buffer, int*size)
 {
-    printf("%*s\r\n", sizeof(CONFIG_MAGIC)-1, CONFIG_MAGIC);
+    //printf("%*s\r\n", sizeof(CONFIG_MAGIC)-1, CONFIG_MAGIC);
     memcpy(buffer, CONFIG_MAGIC, sizeof(CONFIG_MAGIC));
     *size = sizeof(CONFIG_MAGIC);
     return 0;

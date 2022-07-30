@@ -133,6 +133,33 @@ int clock_getres(clockid_t clock_id, struct timespec *res)
 	res->tv_nsec =1000*BOARD_RTC_PERIOD;
 	return 0;
 }
+/*
+errno:
+    [EINTR]
+        The nanosleep() function was interrupted by a signal.
+    [EINVAL]
+        The rqtp argument specified a nanosecond value less than zero or greater than or equal to 1000 million.
+	[ENOTSUP]
+		The clock_id argument specifies a clock for which clock_nanosleep() is not supported, such as a CPU-time clock.
+ */
+/*! \brief Ускорение операций дления на константу */
+static inline uint32_t div1000(uint32_t v) {
+#if defined(__ARM_ARCH_8M_BASE__)
+	return v/1000U;
+#else
+    return (v*0x83126E98ULL)>>41;
+#endif
+}
+int clock_nanosleep(clockid_t clock_id, int flags,
+       const struct timespec *rqtp, struct timespec *rmtp)
+{
+	if (rqtp->tv_sec!=0 || rqtp->tv_nsec>=1000000000 ) {
+		// errno = EINVAL
+		return -1;
+	}
+	svc1(SVC_USLEEP, div1000(rqtp->tv_nsec));
+	return 0;
+}
 int clock_settime(clockid_t clock_id, const struct timespec *tp)
 {
 	//! \todo наверное надо через SVC выставлять

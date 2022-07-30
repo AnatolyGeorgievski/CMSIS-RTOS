@@ -50,7 +50,7 @@ osStatus_t osSemaphoreAcquire (osSemaphoreId_t semaphore_id, uint32_t millisec)
     int count = semaphore_enter(&sem->count);
     if (count) return osOK;
 
-    osEvent event = {.status = osEventSemaphore, .value={.p = (void*)&sem->count}};
+    osEvent_t event = {.status = osEventSemaphore, .value={.p = (void*)&sem->count}};
     osEventWait(&event, millisec);
     if (event.status == osEventSemaphore) return osOK;
     if (event.status == osEventTimeout) return osErrorTimeout;

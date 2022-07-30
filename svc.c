@@ -17,7 +17,7 @@
 __attribute__((noinline)) int usleep(useconds_t usec);
 /*! \brief задержка исполнения на микросекунды
  */
-int usleep(useconds_t usec){    svc(SVC_USLEEP);}
+int usleep(useconds_t usec){    svc1(SVC_USLEEP, usec);}
 
 /* 
 #include <unistd.h>
@@ -31,20 +31,6 @@ int nanosleep(const struct timespec *rqtp, struct timespec *rmtp);
 int clock_nanosleep(clockid_t clock_id, int flags,
        const struct timespec *rqtp, struct timespec *rmtp);
 */
-/*! \brief выделение динамической памяти
- */
-//__attribute__((noinline))
-//void* malloc(unsigned int size){    svc(SVC_MALLOC);}
-
-/*! \brief освободить динамическую память
- */
-//__attribute__((noinline))
-//void free(void* ptr) {    svc(SVC_FREE);}
-
-__attribute__((noinline)) void kill(void* thread){    svc(SVC_KILL);}
-
-/*! \} */
-
 static void svc_handler_main(unsigned int *frame, int svc_number);
 static SvcCallback svcs[]= {
 [0 ... SVC_COUNT] = svc_handler_main, // значение по умолчанию

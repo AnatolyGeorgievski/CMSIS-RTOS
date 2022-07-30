@@ -49,22 +49,23 @@ int  mtx_lock(mtx_t *mtx)
 	if (count) return thrd_success;
 
 	osEvent event = {.status = osEventSemaphore,.value ={.p = (void*)&mtx->count}};
-	osEventWait(&event, osWaitForever);
-	return (event.status& osEventTimeout)?thrd_timedout:thrd_success;
+	return osEventWait(&event, osWaitForever);
+//	return (event.status& osEventTimeout)?thrd_timedout:thrd_success;
 }
+/*! 
+The \b mtx_timedlock function endeavors to block until it locks the mutex pointed to by
+\b mtx or until after the TIME_UTC-based calendar time pointed to by \b ts. The specified
+mutex shall support timeout. If the operation succeeds, prior calls to \b mtx_unlock on
+the same mutex shall synchronize with this operation.
+*/
 int  mtx_timedlock(mtx_t *restrict mtx, const struct timespec *restrict ts)
 {
 	int count = semaphore_enter(&mtx->count);
-/*	int count;
-	do {// атомарно добавляем в список
-		count = atomic_int_get(mtx);
-	} while (!atomic_int_compare_and_exchange(mtx, count, 0)); */
 	if (count) return thrd_success;
 
-	uint32_t millisec = div1M(ts->tv_nsec) + __USAT(ts->tv_sec,32-10)*1000;
 	osEvent event = {.status = osEventSemaphore,.value ={.p = (void*)&mtx->count}};
-	osEventWait(&event, millisec);
-	return (event.status == osEventTimeout)?thrd_timedout: thrd_success;
+	return osEventTimedWait(&event, ts);
+	//return (event.status & osEventTimeout)?thrd_timedout: thrd_success;
 	
 }
 /*! \brief Неблокирующий вызов мьютекса

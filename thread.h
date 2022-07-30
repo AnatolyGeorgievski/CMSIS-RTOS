@@ -50,7 +50,8 @@ struct os_thread_cb {
 	int error_no;// ошибки см POSIX
 	osPriority 		priority;	//!< приоритет исполнения
 	const osThreadDef_t* def;
-	tss_t tss;
+	tss_t tss;	//!< Thread Specific Storage
+	void* cond;//!< Condition Variable
 };
 //#define TCB_FROM_QUEUE(lst) ((TCB*)((void*)lst - __builtin_offsetof(TCB, queue_next)))
 typedef int (*thrd_start_t)(void *);
