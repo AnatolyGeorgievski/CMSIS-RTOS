@@ -35,9 +35,9 @@
 |pthread_equal( )           | thr_equal
 |pthread_exit( )            | thr_exit
 |pthread_join( )            | thr_join
-|pthread_kill( )            |
 |pthread_self( )            | thr_current
 |sched_yield( )             | thrd_yield
+|nanosleep( )               | thrd_sleep
 |pthread_getspecific( )     | tss_get
 |pthread_setspecific( )     | tss_set
 |pthread_key_create( )      | tss_create
