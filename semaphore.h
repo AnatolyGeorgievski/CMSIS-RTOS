@@ -59,7 +59,7 @@ static inline int semaphore_leave(volatile int * ptr)
 //
 #define SEM_FAILED NULL
 
-typedef volatile int32_t sem_t;
+typedef struct _sem sem_t;
 int    sem_close(sem_t *);
 int    sem_destroy(sem_t *);
 int    sem_getvalue(sem_t *restrict, int *restrict);

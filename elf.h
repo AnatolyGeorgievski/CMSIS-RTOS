@@ -1,12 +1,17 @@
-#ifndef ELF32_H
-#define ELF32_H
+#ifndef __ELF_H
+#define __ELF_H
 #include <stdint.h>
 
-#define EI_MAGIC (0x464C457F)
+#define ELFCLASSNONE 0
 #define ELFCLASS32 1
 #define ELFCLASS64 2
-#define ELFOSABI_NONE 	0 // Unix System V
-#define ELFOSABI_SYSV   0        /* Alias.  */
+
+#define ELFDATANONE 0
+#define ELFDATA2LSB 1
+#define ELFDATA2MSB 2
+
+#define ELFOSABI_NONE 	0 		/* Unix System V */
+#define ELFOSABI_SYSV   0       /* Alias.  */
 #define ELFOSABI_GNU 	3
 #define ELFOSABI_LINUX  ELFOSABI_GNU
 #define ELFOSABI_HURD  	4		/* GNU/Hurd */
@@ -17,6 +22,8 @@
 #define ELFOSABI_STANDALONE	255 /* Standalone (embedded) application */
 
 #define EM_386		3		/* Intel 80386 */
+
+#define EM_MIPS		8		/* */
 #define EM_PPC    	20      /* PowerPC */
 #define EM_PPC64	21		/* 64-bit PowerPC */
 #define EM_ARM    	40      /* ARM */
@@ -26,6 +33,7 @@
 #define EM_STM8   	186        /* STMicroelectronics STM8 */
 #define EM_MCHP_PIC	204        /* Microchip 8-bit PIC(r) */
 #define EM_AMDGPU	224        /* AMD GPU */
+#define EM_RISCV    243
 #define EM_BPF		247        /* Linux BPF -- in-kernel virtual machine */
 #define EM_NUM                253
 
@@ -43,17 +51,12 @@ typedef uint32_t Elf32_Addr;
 typedef uint32_t Elf32_Off; //!< смещение 
 typedef uint16_t Elf32_Half;
 
-typedef struct _ElfHeader32 ElfHeader_t;
-typedef struct _ElfHash ElfHash_t;
-typedef struct _Elf32_Shdr Elf32_Shdr_t;
-
-struct _ElfHash {
-	Elf32_Word nbucket;
-	Elf32_Word nchain;
-	Elf32_Word bucket[0];// два массива подряд =nbucket+nchain
-};
-struct _ElfHeader32 {
-	struct {
+typedef struct _Elf32_Ehdr Elf32_Ehdr;
+typedef struct _Elf32_Shdr Elf32_Shdr;
+#define EI_NIDENT 16
+struct _Elf32_Ehdr {
+	unsigned char	e_ident[EI_NIDENT];
+/*	struct {
 		uint32_t magic;	// 0x7f 0x45 0x4c 0x46
 		uint8_t class;	// 1- 32 bit, 2- 64 bit
 		uint8_t data;	// 1- little endian, 2- big endian
@@ -61,7 +64,7 @@ struct _ElfHeader32 {
 		uint8_t os_abi;
 		uint8_t abi_version;
 		uint8_t pad[7];
-	} e_ident;
+	} e_ident; */
 	Elf32_Half e_type;		//!< 1 - перемещаемый, 2 - исполняемый, 3 - разделяемый, 4 - ядро, 
 	Elf32_Half e_machine;	//!< 40 - ARM, 62 - x86-64
 	Elf32_Word e_version;	//!< 1 - current
@@ -91,7 +94,7 @@ struct _Elf32_Shdr {
 	Elf32_Word sh_entsize;
 };
 /*! Таблица символов .symtab */
-typedef struct _Elf32_Sym  Elf32_Sym_t;
+typedef struct _Elf32_Sym  Elf32_Sym;
 struct _Elf32_Sym {
 	Elf32_Word st_name;
 	Elf32_Addr st_value;
@@ -101,20 +104,23 @@ struct _Elf32_Sym {
 	Elf32_Half st_shndx;
 };
 /*! Таблица перемещений .rel */
-typedef struct _Elf32_Rel Elf32_Rel_t;
+typedef struct _Elf32_Rel Elf32_Rel;
 struct _Elf32_Rel {
 	Elf32_Addr r_offset;
 	Elf32_Word r_info;
 };
-/*! Таблица перемещений .rela */
-typedef struct _Elf32_Rela Elf32_Rela_t;
+/*! Таблица перемещений .rela 
+Elf32_Rela entries contain an explicit addend. Entries of type 
+Elf32_Rel store an implicit addend in the location to be modified
+*/
+typedef struct _Elf32_Rela Elf32_Rela;
 struct _Elf32_Rela {
 	Elf32_Addr r_offset;
 	Elf32_Word r_info;
-	Elf32_Sword r_addend;
+	Elf32_Sword r_addend;//!<  constant addend
 };
 /*! Таблица программ */
-typedef struct _Elf32_Phdr Elf32_Phdr_t;
+typedef struct _Elf32_Phdr Elf32_Phdr;
 struct _Elf32_Phdr {
 	Elf32_Word p_type;
 	Elf32_Off  p_offset;
@@ -126,7 +132,7 @@ struct _Elf32_Phdr {
 	Elf32_Word p_align;
 };
 /*! Таблица динамических параметров */
-typedef struct _Elf32_Dyn Elf32_Dyn_t;
+typedef struct _Elf32_Dyn Elf32_Dyn;
 struct _Elf32_Dyn {
 	Elf32_Sword d_tag;
 	union {
@@ -135,7 +141,7 @@ struct _Elf32_Dyn {
 	} d_un;
 };
 
-typedef struct _Elf32_Chdr Elf32_Chdr_t;
+typedef struct _Elf32_Chdr Elf32_Chdr;
 struct _Elf32_Chdr {
   Elf32_Word        ch_type;        /* Compression format.  */
   Elf32_Word        ch_size;        /* Uncompressed data size.  */
@@ -157,6 +163,7 @@ struct _Elf32_Chdr {
 #define STT_FUNC 2
 #define STT_SECTION 3
 #define STT_FILE 4
+#define STT_COMMON      5
 #define STT_LOPROC 13
 #define STT_HIPROC 15
 
@@ -194,9 +201,9 @@ struct _Elf32_Chdr {
 
 #define ELF32_ST_INFO(b,t) (((b)<<4)+((t)&0xF))
 
-#define ELF32_R_SYM(i) ((i)>>8)
-#define ELF32_R_TYPE(i) ((unsigned char)(i))
-#define ELF32_R_INFO(s,t) (((s)<<8)+(unsigned char)(t))
+#define ELF32_R_SYM(i) 		((i)>>8)
+#define ELF32_R_TYPE(i) 	((unsigned char)(i))
+#define ELF32_R_INFO(s,t) 	(((s)<<8)+(unsigned char)(t))
 
 #define SHN_UNDEF 	0
 #define SHN_ABS 	0xFFF1
@@ -212,10 +219,46 @@ struct _Elf32_Chdr {
 #define PT_INTERP  	3
 #define PT_NOTE    	4
 #define PT_SHLIB   	5
-#define PT_SHDR    	6
+#define PT_PHDR    	6// PT_SHDR
 #define PT_TLS      7               /* Thread local storage segment */
 #define PT_ARM_ARCHEXT 	0x70000000
 #define PT_ARM_EXIDX 	0x70000001
+
+#define DT_NULL         0
+#define DT_NEEDED       1
+#define DT_PLTRELSZ     2
+#define DT_PLTGOT       3
+#define DT_HASH         4
+#define DT_STRTAB       5
+#define DT_SYMTAB       6
+#define DT_RELA         7
+#define DT_RELASZ       8
+#define DT_RELAENT      9
+#define DT_STRSZ        10
+#define DT_SYMENT       11
+#define DT_INIT         12
+#define DT_FINI         13
+#define DT_SONAME       14
+#define DT_RPATH        15
+#define DT_SYMBOLIC     16
+#define DT_REL          17
+#define DT_RELSZ        18
+#define DT_RELENT       19
+#define DT_PLTREL       20
+#define DT_DEBUG        21
+#define DT_TEXTREL      22
+#define DT_JMPREL       23
+#define DT_BIND_NOW     24
+#define DT_INIT_ARRAY   25
+#define DT_FINI_ARRAY   26
+#define DT_INIT_ARRAYSZ 27
+#define DT_FINI_ARRAYSZ 28
+#define DT_RUNPATH      29
+#define DT_FLAGS        30
+#define DT_ENCODING     32
+#define DT_PREINIT_ARRAY 32
+#define DT_PREINIT_ARRAYSZ 33
+#define DT_NUM          34
 
 // Section Types, sh_type
 #define SHT_NULL		0
@@ -270,18 +313,33 @@ struct _Elf32_Chdr {
 enum {
 	R_ARM_NONE			=0,
 	R_ARM_ABS32			=2,
-	R_ARM_THM_CALL		=10,
+	R_ARM_REL32			=3,
+	R_ARM_THM_PC22		=10,// R_ARM_THM_PC22	
+	R_ARM_THM_CALL		=10,// R_ARM_THM_PC22	
 // Dynamic relocations
-	R_ARM_GLOB_COPY		=20,
-	R_ARM_GLOB_DAT		=21,
-	R_ARM_JUMP_SLOT		=22,
-	R_ARM_RELATIVE		=23,
+	R_ARM_COPY			=20,
+	R_ARM_GLOB_DAT		=21,/* Create GOT entry */
+	R_ARM_JUMP_SLOT		=22,/* Create PLT entry */
+	R_ARM_RELATIVE		=23,/* Adjust by program base */
+// Position Relative
+	R_ARM_GOTOFF32		=24,/* 32 bit offset to GOT */
+	R_ARM_BASE_PREL		=25,/* R_ARM_GOTPC 32 bit PC relative offset to GOT */
+	R_ARM_GOT_BREL		=26,/* R_ARM_GOT32 32 bit GOT entry */
 
 	R_ARM_THM_JUMP24	=30,
+	R_ARM_BASE_ABS		=31,
 	R_ARM_TARGET1		=38,
+	R_ARM_PREL31		=42,
 	R_ARM_THM_MOVW_ABS_NC=47,
 	R_ARM_THM_MOVT_ABS	=48,
+
+	R_ARM_THM_MOVW_PREL_NC =49,
+	R_ARM_THM_MOVT_PREL	=50,
+
 	R_ARM_THM_JUMP19	=51,
+	R_ARM_THM_MOVW_BREL_NC = 87,
+	R_ARM_THM_MOVT_BREL = 88,
+	R_ARM_THM_MOVW_BREL = 89,
 };
 
-#endif // ELF32_H
+#endif // __ELF_H
