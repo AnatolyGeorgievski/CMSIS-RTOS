@@ -19,7 +19,13 @@
 #define	ENOMEM 12	/* Not enough space */
 #define	EACCES 13	/* Permission denied */
 #define	EFAULT 14	/* Bad address */
-
+// Применяются в тредах
+#define EBUSY 16        /* Device or resource busy */
+#define EINVAL 22       /* Invalid argument */
+#define EDEADLK 45      /* Deadlock */
+#define ENOSYS 88       /* Function not implemented */
+#define ETIMEDOUT 116 	/* Connection timed out */
+#define EOWNERDEAD 142 	/* Previous owner died */
 
 volatile int *__aeabi_errno_addr(void);
 #define errno (*__aeabi_errno_addr())

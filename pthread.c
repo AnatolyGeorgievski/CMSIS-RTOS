@@ -1,14 +1,17 @@
-/* pthread.c 
-
+/*! \file pthread.c -- POSIX Threads. реализация в составе R3v2 RTOS
+	\author Anatoly Georgievskii <anatoly.georgievski@gmail.com>
+	\date 2022-08-16
+	\copyright 2022
  */
-#include <atomic.h>
-#include <unistd.h> 
-#include <pthread.h> 
-#include <semaphore.h>
-#include <signal.h> 
-#include <stdlib.h>
-#include <svc.h>
-
+#include <atomic.h>		// Аппаратно-зависимые определения machine/atomic.h
+#include <errno.h>		// С Library Arm EABI 
+#include <unistd.h>  	// стандартные вызовы UNIX конфигурация задана набором определений _POSIX_*
+#include <pthread.h> 	// POSIX Threads
+#include <semaphore.h>	// POSIX Semaphores
+#include <svc.h>		// переделать на sys/svccall.h
+#include <stdlib.h>		// malloc
+// определено в ERRNO
+//enum {EOK, EBUSY, ETIMEDOUT, EINTR, EOWNERDEAD};
 
 typedef struct _List List_t;
 struct _List {
@@ -39,7 +42,6 @@ struct _cond {
 };
 #define osWaitForever 0
 enum {osEventRunning, osEventTimeout, osEventSemaphore, osEventSignal};
-enum {EOK, EBUSY, ETIMEDOUT, EINTR, EOWNERDEAD};
 /* 
 Для взаимодействия с ОС используется ряд переменных расположенных в SHARED USER_RO памяти
 Мы используем простую модель памяти, 
@@ -97,9 +99,14 @@ static int osEventWait(int type, uint32_t value, uint32_t interval)
 	pthread_t thr = pthread_self();
 	return (thr->process.event.status & type)? 0: EINTR;
 }
-/* 
+/*!
 Чем отличаются мьютексы: - это невозможность разблокировать в чужом треде 
 Unlock When Not Owner
+Рекурсивные мьютексы подсчитывают число блокировок, 
+это достигается за счет проверки владельца. 
+Владелец может увеличивать и уменьшать счетчик блокировок.
+Для реализации condition variables можно использовать только нормальные мьютексы. 
+
 Спинлоки - это разделяемые блокировки в момент захвата владелец меняется. 
 В нашей реализации - нет привязки к владельцу.
 
@@ -424,6 +431,7 @@ struct _lock {
 };
 
 int   pthread_spin_destroy(pthread_spinlock_t *lock){
+	lock->count = -1;
 	return 0;
 }
 int   pthread_spin_init(pthread_spinlock_t *lock, int pshared){
@@ -441,6 +449,91 @@ int   pthread_spin_trylock(pthread_spinlock_t *lock){
 }
 int   pthread_spin_unlock(pthread_spinlock_t *lock) {
 	semaphore_leave(&lock->count);
+#if defined(_POSIX_THREAD_PROCESS_SHARED) && (_POSIX_THREAD_PROCESS_SHARED>0)
+// 	hw_semaphore_unlock(&lock->hw, pid_t);
+#endif
+	return 0;
+}
+#endif
+#if defined(_POSIX_READER_WRITER_LOCKS)   && (_POSIX_READER_WRITER_LOCKS   > 0)
+
+/*! Для получения доступа на чтение или запись используется один счетчик числа блокировок.
+	Единая переменная позволяет выполнить операции атомарно. 
+	Блокировка возникает при обращении на чтение ReadLock.  
+	Число читателей расчитывается в отрицательных числах. 
+	Если число читателей равно нулю, можно получить доступ на запись. 
+	При этом читатели блокируются, значение счетчика 0 не позволяет получить доступ на чтение. 
+	Если все читатели вышли, писатель может получить доступ на изменение. 
+	Писатель может ожидать освобождение ресурса. 
+
+	Читатель не может ждать, надо придумать другой метод. 
+	Например Yield в цикле, передать упраление писателю.
+	Мы предполагаем использовать методы RWLock для работы с системным реестром (директорией). 
+*/
+
+struct _rwlock {
+	volatile int count;// число читателей
+//	const pthread_rwlockattr_t* attr;
+};
+
+int pthread_rwlock_destroy(pthread_rwlock_t *rwlock) {
+	rwlock->count = 0;
+	return 0;
+}
+int pthread_rwlock_init(pthread_rwlock_t *restrict rwlock, const pthread_rwlockattr_t *restrict attr){
+	rwlock->count = 1;
+//	rwlock->attr  = attr;
+	return 0;
+}
+/*!	\brief 
+	\param 
+	\return  shall return zero if the lock for writing on the read-write
+lock object referenced by rwlock is acquired. Otherwise, an error number shall be returned to
+indicate the error
+		\arg EBUSY The read-write lock could not be acquired for writing because it was already
+		locked for reading or writing.
+		
+ */
+int pthread_rwlock_trywrlock(pthread_rwlock_t *rwlock)
+{
+	volatile int* ptr = &rwlock->count;
+	int count;
+	do {// если число читателей нуль, заблокировать чтение. 
+		count = atomic_int_get(ptr);
+		if (count <= 0) 
+			return EBUSY;
+	}while(!atomic_int_compare_and_exchange(ptr, count, 0));
+	return 0; // count 1 - получен доступ
+}
+int pthread_rwlock_wrlock(pthread_rwlock_t *rwlock)
+{
+	volatile int* ptr = &rwlock->count;
+	int count;
+	do {// если число читателей нуль count=1, заблокировать чтение. 
+		count = atomic_int_get(ptr);
+		if (count <= 0) 
+			return osEventWait(osEventSemaphore, (uintptr_t)&rwlock->count, osWaitForever);// Уменьшает на единицу, если больше 0
+	}while(!atomic_int_compare_and_exchange(ptr, count, 0));
+	return 0; // 1 - получен доступ
+}
+int pthread_rwlock_tryrdlock(pthread_rwlock_t *rwlock)
+{
+	volatile int* ptr = &rwlock->count;
+	int count;
+	do { // увеличить число читателей
+		count = atomic_int_get(ptr);
+		if (count==0) // заблокировано для читателей и для писателей
+			return EBUSY;
+	}while(!atomic_int_compare_and_exchange(ptr, count, count-2));
+	return 0;
+}
+int pthread_rwlock_unlock(pthread_rwlock_t *rwlock)
+{
+	volatile int* ptr = &rwlock->count;
+	register int count;
+	do {// уменьшить число читателей или сбросить блокировку чтения
+		count = atomic_int_get(ptr);
+	}while(!atomic_int_compare_and_exchange(ptr, count, count==0?1:count+2));
 	return 0;
 }
 #endif

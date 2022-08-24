@@ -101,7 +101,7 @@ typedef void* pthread_key_t;
 typedef struct _mtx  pthread_mutex_t;
 typedef void* pthread_mutexattr_t;
 typedef int   pthread_once_t;
-typedef void* pthread_rwlock_t;
+typedef struct _rwlock pthread_rwlock_t;
 typedef void* pthread_rwlockattr_t;
 typedef struct _lock pthread_spinlock_t;
 
@@ -125,14 +125,12 @@ typedef struct _lock pthread_spinlock_t;
 // RPI|TPI PTHREAD_PRIO_INHERIT
 // MC1 PTHREAD_PRIO_NONE
 // RPP|TPP PTHREAD_PRIO_PROTECT
-#define PTHREAD_PROCESS_SHARED
-#define PTHREAD_PROCESS_PRIVATE
 // TPS PTHREAD_SCOPE_PROCESS
 #define PTHREAD_SCOPE_SYSTEM
 
 #define PTHREAD_COND_INITIALIZER	((pthread_cond_t)0)
-#define PTHREAD_MUTEX_INITIALIZER 	((pthread_mutex_t)1)
-#define PTHREAD_RWLOCK_INITIALIZER 	((pthread_rwlock_t)0)
+#define PTHREAD_MUTEX_INITIALIZER 	((pthread_mutex_t){1})
+#define PTHREAD_RWLOCK_INITIALIZER 	((pthread_rwlock_t){0})
 struct sched_param;
 /* The following shall be declared as functions and may also be defined as macros. Function
 prototypes shall be provided */
@@ -172,17 +170,20 @@ int pthread_cond_timedwait(pthread_cond_t *restrict, pthread_mutex_t *restrict, 
 int pthread_cond_wait(pthread_cond_t *restrict, pthread_mutex_t *restrict);
 int pthread_condattr_destroy(pthread_condattr_t *);
 int pthread_condattr_getclock(const pthread_condattr_t *restrict, clockid_t *restrict);
-/* TSH */int pthread_condattr_getpshared(const pthread_condattr_t *restrict, int *restrict);
+/* TSH */
+int pthread_condattr_getpshared(const pthread_condattr_t *restrict, int *restrict);
 int pthread_condattr_init(pthread_condattr_t *);
 int pthread_condattr_setclock(pthread_condattr_t *, clockid_t);
-/* TSH */int pthread_condattr_setpshared(pthread_condattr_t *, int);
+/* TSH */
+int pthread_condattr_setpshared(pthread_condattr_t *, int);
 int pthread_create(pthread_t *restrict, const pthread_attr_t *restrict, void *(*)(void*), void *restrict);
 int pthread_detach(pthread_t);
 int pthread_equal(pthread_t, pthread_t);
 void pthread_exit(void *);
 //OB XSI int pthread_getconcurrency(void);
 /* TCT */int pthread_getcpuclockid(pthread_t, clockid_t *);
-/* TPS */int pthread_getschedparam(pthread_t, int *restrict, struct sched_param *restrict);
+/* TPS */
+int pthread_getschedparam(pthread_t, int *restrict, struct sched_param *restrict);
 void *pthread_getspecific(pthread_key_t);
 int pthread_join(pthread_t, void **);
 int pthread_key_create(pthread_key_t *, void (*)(void*));
@@ -219,8 +220,7 @@ int pthread_rwlock_trywrlock(pthread_rwlock_t *);
 int pthread_rwlock_unlock(pthread_rwlock_t *);
 int pthread_rwlock_wrlock(pthread_rwlock_t *);
 int pthread_rwlockattr_destroy(pthread_rwlockattr_t *);
-/* TSH */int pthread_rwlockattr_getpshared(
-const pthread_rwlockattr_t *restrict, int *restrict);
+/* TSH */int pthread_rwlockattr_getpshared(const pthread_rwlockattr_t *restrict, int *restrict);
 int pthread_rwlockattr_init(pthread_rwlockattr_t *);
 /* TSH */int pthread_rwlockattr_setpshared(pthread_rwlockattr_t *, int);
 pthread_t pthread_self(void);

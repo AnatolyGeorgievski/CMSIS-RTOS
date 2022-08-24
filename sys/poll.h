@@ -1,5 +1,5 @@
-#ifndef SYS_POLL_H
-#define SYS_POLL_H
+#ifndef _SYS_POLL_H_
+#define _SYS_POLL_H_
 /* The <poll.h> header shall define the following symbolic constants, zero or more of which may be OR'ed together to form the events or revents members in the pollfd structure:
 
 POLLIN
@@ -26,6 +26,7 @@ POLLNVAL
 	\see https://pubs.opengroup.org/onlinepubs/9699919799/
 
  */
+#include <sys/types.h>// sigset_t 
 #define POLLIN 	1
 #define POLLOUT	2
 #define POLLERR	4
@@ -36,7 +37,8 @@ struct pollfd {
 };
 
 typedef unsigned int nfds_t;
-int   poll(struct pollfd [], nfds_t, int);
+int poll(struct pollfd *, nfds_t, int);
+int ppoll(struct pollfd *fds, nfds_t nfds,
+    const struct timespec *tmo_p, const sigset_t *sigmask);
 
-
-#endif // SYS_POLL_H
+#endif // _SYS_POLL_H_
