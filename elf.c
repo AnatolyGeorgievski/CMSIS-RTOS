@@ -200,13 +200,13 @@ int elf_arm_relocate_fast(Elf32_Rel* rel, uint32_t symbol_value,
 	case R_ARM_JUMP_SLOT:// Resolves to the address of the specified symbol
 		*(uint32_t *)address = symbol_value;
 		break;
-	case R_ARM_PREL31: // используется в LLVM и GCC для перемещения непонятно чего в сегменте ARM...
+	case R_ARM_PREL31: {// используется в LLVM и GCC для перемещения непонятно чего в сегменте ARM...
 		int32_t x = *(int32_t *)address;
 		x = x<<1>>1;// sign extend
 		x += symbol_value - segment_addr;
 		*(uint32_t *)address &= 0x80000000UL;
 		*(uint32_t *)address |= x & 0x7fffffff;
-		break;
+	}	break;
 #if 0
 	// Posiotion Relative Relocations -- PIC position independant code
 	case R_ARM_RELATIVE:// 23

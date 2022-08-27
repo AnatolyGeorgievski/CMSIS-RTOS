@@ -15,25 +15,25 @@ typedef uint32_t clock_t; // [C11] должен быть определен гд
 #endif // _CLOCK_T_DEFINED
 #ifndef _SIG_ATOMIC_T_DEFINED
 #define _SIG_ATOMIC_T_DEFINED
-typedef volatile uint32_t sig_atomic_t; // [C11] должен быть определен где-то в <signal.h>
+typedef int32_t sig_atomic_t; // [C11] должен быть определен где-то в <signal.h>
 #endif // _SIG_ATOMIC_T_DEFINED
 
-struct _Wait {
+struct _Wait {// \sa POSIX struct itimespec
 	uint32_t timestamp;	// когда началось ожидание
 	uint32_t timeout;	// таймаут ожидания сигналов или 0
 };
 typedef struct _Process osProcess_t;
 struct _Process {
-	sig_atomic_t signals;
+	volatile sig_atomic_t signals;// \sa POSIX sigset_t
 	osEvent event;
-	struct {
+	struct {// \sa POSIX struct i
 		uint32_t timestamp;
 		uint32_t timeout;
 	} wait;
 	int (*func)(void * arg);
 	void* arg;
 	int result;
-	uint32_t pid;
+//	pid_t pid;  уникальный идентификатор процесса
 };
 struct _Service {
 	struct _Process process;

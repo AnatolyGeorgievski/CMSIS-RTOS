@@ -65,8 +65,11 @@ MCAPI provides three modes of communication: messages, packets, scalars
 #include <cmsis_os.h>
 #include "svc.h"
 #include "pio.h"
-#include "thread.h"
+#include <sys/thread.h>
+//#include <thread.h>
 #include <threads.h>
+#include <signal.h>
+#include <errno.h>
 //#include "atomic.h"
 #include "semaphore.h"
 #include "ident.h"// идентификация аппаратуры
@@ -77,13 +80,18 @@ MCAPI provides three modes of communication: messages, packets, scalars
 #include <stdnoreturn.h>
 
 
+//const int __aeabi_SIGTERM = 15;
+
 #define PSP_THREAD_MODE 1
 
-
+typedef struct _Event osEvent_t;
+typedef struct _Event osEvent;
+typedef struct _thread TCB;
+typedef struct _thread osThread_t;
 /// функция возвращает идентификатор треда по указателю
-#define TCB_ID(t) (t)
+#define TCB_ID(t) ((void*)(t))
 /// функция возвращает указатель по идентификатору треда или NULL в случае ошибки
-#define TCB_PTR(t) (t)
+#define TCB_PTR(t) ((TCB*)(t))
 #define OS_SIGNAL_MASK ((~0UL)>>(32- osFeature_Signals))
 //#define OS_EVENT_MASK (osEventSignal|osEventMessage|osEventMail|osEventTimeout)
 
@@ -134,7 +142,7 @@ void osStackDebug()
 }
 // функции могут вызваться только из SVC
 static void svc_handler_yield   (unsigned int *frame, int svc_number) PRIVILEGED_FUNCTION;
-static void svc_handler_exit    (unsigned int *frame, int svc_number) PRIVILEGED_FUNCTION;
+static void svc_handler_signal  (unsigned int *frame, int svc_number) PRIVILEGED_FUNCTION;
 static void svc_handler_usleep  (unsigned int *frame, int svc_number) PRIVILEGED_FUNCTION;
 static void svc_handler_kill	(unsigned int *frame, int svc_number) PRIVILEGED_FUNCTION;
 static void svc_handler_event_wait(unsigned int *frame, int svc_number) PRIVILEGED_FUNCTION;
@@ -144,10 +152,24 @@ static TCB main_thread = {.sp = NULL, .next=&main_thread,
 	.process.signals = 0, /*.errno=0,*/.priority=osPriorityNormal};
 // Эти переменные должны быть доступны на чтение, но не на изменение
 
-static TCB *current_thread = &main_thread; //!< указатель на дескриптор треда
+TCB *current_thread = &main_thread; //!< указатель на дескриптор треда
 static TCB *tcb_list = &main_thread; //!< указатель на дескриптор треда. Первый элемент списка это процесс "main", он считается привелегированным и никогда не выкидывается из списка
 
-
+static void svc_handler_signal(unsigned int *frame, int svc_number)
+{
+	TCB* thr = TCB_PTR(frame[0]);
+	int sig = (int)frame[1];
+	union sigval value = (union sigval)(int)frame[2];
+	sigset_t set = atomic_fetch_or(&thr->process.event.status , 1<<value.sival_int);
+	if(set & (1U<<value.sival_int)) {
+	// если сигнал не обработан то вернуть EAGAIN
+		frame[0] = -1;
+		current_thread->error_no = EAGAIN;
+		return;
+	}
+	//
+	__YIELD();// пробуем передать управление
+}
 /*! \brief выполнить переключение задач на выходе из ISR
 
  */
@@ -163,21 +185,21 @@ static void svc_handler_yield(unsigned int *frame, int svc_number)
  */
 static void svc_handler_kill(unsigned int *frame, int svc_number)
 {    // убить тред
-    osThreadId thr = (void*)frame[0];
+    TCB* thr = TCB_PTR(frame[0]);
 //	debug("-KILL\r\n");
     if (thr==NULL) return;
 	if (thr->process.event.status & osEventService) 
 	{// это служба ей не положено
 		uint32_t* sp = atomic_exchange(&thr->sp, NULL);
-		osStackFree(sp, thr->def->stacksize);
+		osStackFree(sp, 0/*thr->attr->stacksize*/);//thr->def->stacksize
 		__YIELD();
 		return;
 	}
     //if (current_thread != thread->parent) return;
-    osThreadId tcb = tcb_list;
+    TCB* tcb = tcb_list;
 	volatile void** ptr = (volatile void**)&tcb->next;
 	do {
-		while ((tcb = (osThreadId)*(ptr))!=thr) { // найти предыдущий элемент очереди
+		while ((tcb = (TCB*)*(ptr))!=thr) { // найти предыдущий элемент очереди
 			ptr = (volatile void**)&tcb->next;
 		}
 		*ptr = thr->next;
@@ -186,7 +208,7 @@ static void svc_handler_kill(unsigned int *frame, int svc_number)
 	{// если задача имеет размерность N запустить дубликат, с новым индексом instance
 		thr->process.event.status = osEventComplete; // исполнение завершено!  Complete=0, Running=1, Waiting, Idle
 	}
-    osStackFree(thr->sp, thr->def->stacksize);
+    osStackFree(thr->sp, 0/*thr->def->stacksize*/);
     if (thr == current_thread){ // запросить переключение задач на выходе из процедуры
         __YIELD();
     }
@@ -199,14 +221,14 @@ static void svc_handler_usleep(unsigned int *frame, int svc_number)
 	osEvent* event = (void*)frame[1];// status;
 //	debug("-SLEEP\r\n");
 	if (interval < 1000) {
-		uint32_t timestamp = osKernelSysTick();
-		while ((uint32_t)(osKernelSysTick()-timestamp) >= osKernelSysTickMicroSec(interval));
+		uint32_t timestamp = clock();
+		while ((uint32_t)(clock()-timestamp) >= osKernelSysTickMicroSec(interval));
 	}
 	else 
 	{
 		TCB* tcb = TCB_PTR(current_thread);
 		tcb->process.wait.timeout  = osKernelSysTickMicroSec(interval);
-		tcb->process.wait.timestamp=osKernelSysTick();
+		tcb->process.wait.timestamp=clock();
 		tcb->process.event.status = osEventTimeout;
 		__YIELD();
 	}
@@ -214,16 +236,18 @@ static void svc_handler_usleep(unsigned int *frame, int svc_number)
 /*! \brief выполнить задержку в микросекундах */
 static void svc_handler_event_wait(unsigned int *frame, int svc_number)
 {
-	osEvent* event = (void*)frame[0];// status;
-	uint32_t interval = frame[1];// delay;
+	//osEvent_t* event = (osEvent_t*)frame[0];// status;
+	uint32_t status  = (uint32_t)frame[0];// status;
+	void* arg  = (void*)frame[1];// status;
+	uint32_t interval = frame[2];// delay;
 	TCB* tcb = TCB_PTR(current_thread);
-	if (interval!=osWaitForever) {
-		event->status |= osEventTimeout;
+	if (interval!=osWaitForever) {// не работает проверка при умножении *1000
+		status |= osEventTimeout;
 		tcb->process.wait.timeout  = osKernelSysTickMicroSec(interval);// todo выразить в микросекундах
-		tcb->process.wait.timestamp= osKernelSysTick();
+		tcb->process.wait.timestamp= clock();
 	}
 	// event->status &=~osEventRunning;// когда ждем бит(статус) не выставлен
-	tcb->process.event = *event;
+	tcb->process.event = (osEvent_t){.status = status, .value.p = arg};
 	__YIELD();
 }
 /*! \brief запуск системного таймера и ядра системы.
@@ -234,7 +258,7 @@ osStatus osThreadInit(void)
     svc_handler_callback(svc_handler_event_wait,SVC_EVENT_WAIT);
     svc_handler_callback(svc_handler_usleep,SVC_USLEEP);
     svc_handler_callback(svc_handler_yield, SVC_YIELD);
-    svc_handler_callback(svc_handler_kill,  SVC_KILL);
+    svc_handler_callback(svc_handler_kill,  SVC_EXIT);// exit
 //    svc_handler_callback(svc_handler_kill,  SVC_EXEC);
 
 #if 0 //def PSP_THREAD_MODE // переключились PSP стек -- это происходит в начальной загрузке
@@ -263,26 +287,31 @@ osStatus osThreadInit(void)
  */
 int thrd_create(thrd_t *thrd, thrd_start_t func, void *arg)
 {
-	thrd_t thr = NULL;
-	if (thrd) thr = *thrd;
+	TCB* thr = NULL;
+	if (thrd) thr = TCB_PTR(*thrd);
 	// способ выделения блоков памяти под треды требует Shared в кластере
-	if (thr==NULL) thr = malloc(sizeof(struct os_thread_cb));
+	if (thr==NULL) thr = malloc(sizeof(struct _thread));
 	thr->priority = osPriorityNormal;
 	//thr->errno = 0;
 	thr->sp = NULL;// стек не выделяется, пока задача не запущена
 	thr->process.signals = 0; // нет сигналов
-	thr->process.event = (osEvent){.status=osEventRunning, };
+	thr->process.event = (osEvent_t){.status=osEventRunning, };
 	thr->process.arg  = arg;
-	thr->process.func = func;
+	thr->process.func =  (void* (*)(void *))func;
 	thr->error_no = 0;
 	thr->tss=NULL;	// инициализация Thread Specific Storage
-	thr->cond=NULL; // инициализация Condition используется для ожидания завершения 
+//	thr->cond=NULL; // инициализация Condition используется для ожидания завершения 
+	if(thrd) *thrd = TCB_ID(thr);// 
+	else {// Detached
+		
+	}
+		
+// атомарно запихиваем в очередь на исполнение
 	volatile void** ptr= (volatile void**)&(current_thread->next);
 	do {// атомарно записываем элемент в список задач (есть страх что current->next изменится, current - это мой он не изменится пока я не вышел.
 		thr->next = atomic_pointer_get(ptr);
 		atomic_mb();
 	} while (!atomic_pointer_compare_and_exchange(ptr, thr->next, thr));
-	if(thrd) *thrd = thr;
 	return thrd_success;
 }
 /*!	\brief Удалить задачу из списка активных задач
@@ -296,34 +325,58 @@ The order in which destructors are invoked is unspecified
 */
 _Noreturn void thrd_exit(int res)
 {
-	thrd_t self = thrd_current();
+	TCB* self = current_thread;
 #if 0
 	extern void  tss_destroy(tss_t tss);
 	if (self->tss)
 		tss_destroy(self->tss);
 #endif
-	self->process.result = (intptr_t)res;
-    svc1(SVC_KILL, self);
+	self->process.result = (void*)(intptr_t)res;
+    svc3(SVC_SIGNAL, self, SIGTERM, 0);
 	while(1);
 }
 thrd_t thrd_current(void)
 { 
-	return current_thread; 
+	return TCB_ID(current_thread); 
 }
 int thrd_joint(thrd_t thr, int *res)
 {
+#if 0
 	mtx_t *mutex=NULL;
 	cnd_wait((cnd_t *)&thr->cond, mutex);
+#endif
 	return thrd_error;
 }
 int thrd_detach(thrd_t thr) 
 {
+#if 0
 	cnd_destroy((cnd_t *)&thr->cond);
+#endif
 	return thrd_success;
 }
 void thrd_yield(void)
 {
 	svc(SVC_YIELD);
+}
+int thrd_sleep(const struct timespec *duration, struct timespec *remaining)
+{// see clock_nanosleep и nanosleep
+	clock_t ts;
+	if (remaining) {
+		ts = clock();
+	}
+
+	int32_t interval = (unsigned long)duration->tv_nsec/1000; // ошибка в 2.4%
+	
+	svc3(SVC_EVENT_WAIT, 0, 0, interval);
+	if (remaining) {
+		interval -= (clock() - ts);
+		if (interval>0)
+			*remaining = (struct timespec){.tv_nsec = interval*1000}; // время до конца интервала
+		else 
+			*remaining = (struct timespec){0};
+	}
+	osEvent_t* event = &current_thread->process.event;
+	return event->status != osEventTimeout?-1:0;
 }
 /*! c11 */
 /*
@@ -347,7 +400,7 @@ int atexit(void (*func)(void))
 	\ingroup _thrd 
 	\required #include <errno.h>
  */
-int* __errno()
+volatile int* __aeabi_errno_addr() 
 {
 	return &current_thread->error_no;
 }
@@ -374,10 +427,10 @@ osThreadId osThreadCreate (const osThreadDef_t *thread_def, void *args)
 	
 //	uint32_t* sp = NULL;//osStackAlloc(thread_def->stacksize);
 
-	osThreadId tcb = NULL;
-	thrd_create(&tcb, thread_def->pthread, args);
-	tcb->priority= thread_def->tpriority;
-	return tcb;
+	osThreadId thr = NULL;
+	thrd_create(&thr, thread_def->pthread, args);
+	TCB_PTR(thr)->priority= thread_def->tpriority;
+	return thr;
 }
 
 /*!	\brief Удалить задачу из списка активных задач
@@ -403,7 +456,7 @@ __attribute__((noinline)) osStatus osThreadTerminate (osThreadId thread_id);
 osStatus osThreadTerminate (osThreadId thread_id)
 {
 	TCB* tcb = TCB_PTR(thread_id);
-    svc1(SVC_KILL, tcb);
+    svc3(SVC_SIGNAL, TCB_ID(tcb), SIGTERM, 0);// заменить на TCB_PID - идентификатор процесса
     return osOK;
 }
 /*! \brief запросить идентификатор активного треда
@@ -431,6 +484,7 @@ osPriority osThreadGetPriority (osThreadId thread_id)
 	if (tcb==NULL) return osPriorityError;
 	return tcb->priority;
 }
+#if 0
 __attribute__((noinline)) osStatus osThreadYield (void);
 /*! \brief запросить переключение задач
 
@@ -441,6 +495,7 @@ osStatus osThreadYield (void)
     svc(SVC_YIELD);
 	return osOK;
 }
+#endif
 /*! \} */
 
 
@@ -452,7 +507,7 @@ osStatus osThreadNotify(osThreadId thread_id) PRIVILEGED_FUNCTION;
 osStatus osThreadNotify(osThreadId thread_id)
 {
 	// \TODO вставить в очередь с учетом приоритета
-	if (thread_id != current_thread) {// если всего два треда, то не надо мутить 
+	if (TCB_PTR(thread_id) != current_thread) {// если всего два треда, то не надо мутить 
 /*
 		volatile void** ptr = &current_thread->next;
 		thread_id->next = atomic_pointer_exchange(ptr, thread_id->next);
@@ -469,9 +524,9 @@ osStatus osThreadNotify(osThreadId thread_id)
 	return osOK;	
 }
 #if 1
-int osThreadErrno (osThreadId thread_id, int err_no)
+int osThreadErrno (osThreadId thr, int err_no)
 {
-	return atomic_exchange(&thread_id->error_no, err_no);
+	return atomic_exchange(&TCB_PTR(thr)->error_no, err_no);
 }
 #endif
 
@@ -589,7 +644,7 @@ unsigned int * osThreadScheduler(unsigned int * stk)
 {
 	current_thread->sp = stk;// вынести эту операцию в PendSV
 	// планировщик задач
-	thrd_t thr = NULL;
+	TCB* thr = NULL;
 	do {
 		/* чтобы можно было запускать несколько плнировщиков, это должна быть служба, 
 		контекст привязан к ядру для которого выполняется планирование, доступ к списку задач - атомарный
@@ -604,7 +659,7 @@ unsigned int * osThreadScheduler(unsigned int * stk)
 #else
 		thr = current_thread = current_thread->next; 
 #endif
-        osEvent *event = &thr->process.event;
+        osEvent_t *event = &thr->process.event;
         if (event->status & osEventRunning) break;
 		
         if (event->status & (osEventSignal)) 	{// ожидаем сигналы
@@ -614,7 +669,7 @@ unsigned int * osThreadScheduler(unsigned int * stk)
             if (signals){
 				//if ((event->status & osEventWaitAll)==0 || (signals==event->value.signals))
 				{
-					event->value.signals =(signals);
+					event->value.signals =(signals); // это может лишняя операция
 					event->status = osEventSignal|osEventRunning;
 					break;
 				}
@@ -625,14 +680,14 @@ unsigned int * osThreadScheduler(unsigned int * stk)
             volatile int* ptr = event->value.p;
 			int count = semaphore_enter(ptr);
 			if (count > 0) { // счетчик семафора до входа
-				event->value.v = count;
+				event->value.v = count;// это может лишняя операция
 				event->status = osEventSemaphore|osEventRunning;
 				break;
 			}
         }
 skip_event:
         if (event->status & (osEventTimeout)) 	{// ожидаем таймаут, можем использовать DWT->CYCCOUNT
-			uint32_t system_timestamp = osKernelSysTick();
+			uint32_t system_timestamp = clock();
             if ((uint32_t)(system_timestamp - thr->process.wait.timestamp)>=thr->process.wait.timeout){
                 // 01.02.2018 event->value.v = system_timestamp - thr->wait.timestamp; // возвращаем задержку
                 event->status = osEventTimeout|osEventRunning;
@@ -717,22 +772,24 @@ For implementations without the Security Extension;
     \brief Wait for Signal, Message, Mail, or Timeout.
 
  */
-__attribute__((noinline)) void osEventWait (osEvent *event, uint32_t interval);
+__attribute__((noinline)) void osEventWait (osEvent_t *event, uint32_t interval);
 /*! \todo сделать время в микросекундах */
-void osEventWait (osEvent *event, uint32_t interval)
+void osEventWait (osEvent_t *event, uint32_t interval)
 {
-	svc2(SVC_EVENT_WAIT, event, interval*1000);
+	svc3(SVC_EVENT_WAIT, event->status, event->value.v, interval*1000);
 	*event = current_thread->process.event;// вот это копирование можно исключить!!
 	//return (event->status & osEventTimeout)?thrd_timedout:thrd_success;
 }
+#if 0//!defined (__ARM_ARCH_8M_BASE__)
 /* Единственное место где выполняется преобразование timespec в интервал */
 osStatus osEventTimedWait (osEvent *event, const struct timespec* restrict ts)
 {
-	//clock_gettime(CLOCK_REALTIME, &now);
-	uint32_t interval = __QADD(ts->tv_sec*1000000ULL,ts->tv_nsec/1000) - clock();// надо оптимизировать и исключить отрицательные значения интервала
-	osEventWait (event, interval);
+	uint32_t interval = (ts->tv_sec*1000000UL + ts->tv_nsec/1000) - clock();// надо оптимизировать и исключить отрицательные значения интервала
+	svc3(SVC_EVENT_WAIT, event->status, event->value.v, interval);
+	*event = current_thread->process.event;// вот это копирование можно исключить!!
 	return (event->status & osEventTimeout)?thrd_timedout:thrd_success;
 }
+#endif
 /*! \} */
 
 //  ==== Signal Management ====
@@ -745,15 +802,15 @@ int32_t osSignalSet (osThreadId thread_id, int32_t signals)
 {
 	// если тред не найден return 0x80000000;
 	//if (thread_id==NULL) return 0x80000000;
-	return atomic_fetch_or((volatile int *)&thread_id->process.signals, (signals & OS_SIGNAL_MASK));
+	return atomic_fetch_or((volatile int *)&TCB_PTR(thread_id)->process.signals, (signals & OS_SIGNAL_MASK));
 }
 int32_t osSignalClear (osThreadId thread_id, int32_t signals)
 {
 	// если тред не найден return 0x80000000;
 	//if (thread_id==NULL) return 0x80000000;
-	return atomic_fetch_and((volatile int *)&thread_id->process.signals, ~(signals & OS_SIGNAL_MASK));
+	return atomic_fetch_and((volatile int *)&TCB_PTR(thread_id)->process.signals, ~(signals & OS_SIGNAL_MASK));
 }
-#if 0
+#if 0// забанили
 /*!  \brief создает ссылку через bit-band alias на сигнал 
 	\param signal - номер сигнала
  */
@@ -775,22 +832,22 @@ int32_t* osSignalRef (osThreadId thread_id, int32_t signal)
 uint32_t osThreadFlagsWait(uint32_t flags, uint32_t options, uint32_t timeout)
 {
 //	if (flags==0) flags = ~0;
-    osEvent event = {.status = osEventSignal|options,.value ={.signals = flags}};
-	osEventWait(&event, timeout);//signals, (millisec), (osEventSignal|osEventTimeout));
-	return (event.status & osEventTimeout)?osFlagsErrorTimeout: event.value.signals;
+	svc3(SVC_EVENT_WAIT, osEventSignal|options, flags, timeout*1000);
+	osEvent_t *event = &current_thread->process.event;
+	return (event->status & osEventTimeout)?osFlagsErrorTimeout: event->value.signals;
 }
 uint32_t osThreadFlagsSet(osThreadId_t thread_id, uint32_t flags)
 {
 	// if (thread_id==NULL) return 0x80000000; эту проверку надо куда-то убрать. В коде ей не место
-	return atomic_fetch_or((volatile int *)&thread_id->process.signals, (flags & OS_SIGNAL_MASK));
+	return atomic_fetch_or((volatile int *)&TCB_PTR(thread_id)->process.signals, (flags & OS_SIGNAL_MASK));
 }
 uint32_t osThreadFlagsClear(osThreadId_t thread_id, uint32_t flags)
 {
 	// if (thread_id==NULL) return 0x80000000; эту проверку надо куда-то убрать. В коде ей не место
-	return atomic_fetch_and((volatile int *)&thread_id->process.signals, ~(flags & OS_SIGNAL_MASK));
+	return atomic_fetch_and((volatile int *)&TCB_PTR(thread_id)->process.signals, ~(flags & OS_SIGNAL_MASK));
 }
 uint32_t osThreadFlagsGet(osThreadId_t thread_id)
 {
-	return (thread_id->process.signals & OS_SIGNAL_MASK);
+	return (TCB_PTR(thread_id)->process.signals & OS_SIGNAL_MASK);
 }
 #endif

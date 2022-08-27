@@ -156,7 +156,7 @@ used throughout the whole project.
 #define osFeature_Condition    0       ///< R3 osCond functions: 1=available, 0=not available
 #define osFeature_AsyncQueue   1       ///< R3 osAsyncQueue functions: 1=available, 0=not available
 #define osFeature_Pool         1       ///< Memory Pools:    1=available, 0=not available
-#define osFeature_MailQ        0       ///< Mail Queues:     1=available, 0=not available
+#define osFeature_MailQ        0       ///< Signal Queues:   1=available, 0=not available
 #define osFeature_MessageQ     0       ///< Message Queues:  1=available, 0=not available
 #define osFeature_Signals      31      ///< maximum number of Signal Flags available per thread
 #define osFeature_Semaphore    30      ///< maximum count for \ref osSemaphoreCreate function
@@ -193,12 +193,13 @@ typedef enum  {
 
 /// Timeout value.
 /// \note MUST REMAIN UNCHANGED: \b osWaitForever shall be consistent in every CMSIS-RTOS.
-#define osWaitForever     0xFFFFFFFF     ///< wait forever timeout value
+#define osWaitForever     0xFFFFFFFFUL     ///< wait forever timeout value
 
 /// Status code values returned by CMSIS-RTOS functions.
 /// \note MUST REMAIN UNCHANGED: \b osStatus shall be consistent in every CMSIS-RTOS.
 typedef enum  {
   osOK                    =     0,       ///< function completed; no error or event occurred.
+/*
   osEventComplete		  =     0,		 ///< R3 событие завершения команды, в параметрах события передается код завершения
   osEventRunning		  =     1,		 ///< R3 событие обрабатывается в очередь обработки
   osEventQueued			  =     2,		 ///< R3 событие поставлено в очередь обработки
@@ -208,7 +209,7 @@ typedef enum  {
   osEventMessage          =  0x10,       ///< function completed; message event occurred.
   osEventMail             =  0x20,       ///< function completed; mail event occurred.
   osEventTimeout          =  0x40,       ///< function completed; timeout occurred.
-
+*/
   osErrorParameter        =  0x80,       ///< parameter error: a mandatory parameter was missing or specified an incorrect object.
   osErrorResource         =  0x81,       ///< resource not available: a specified resource was not available.
   osErrorTimeoutResource  =  0xC1,       ///< resource not available within given time: a specified resource was not available within the timeout period.
@@ -218,10 +219,10 @@ typedef enum  {
   osErrorNoMemory         =  0x85,       ///< system is out of memory: it was impossible to allocate or reserve memory for the operation.
   osErrorValue            =  0x86,       ///< value of a parameter is out of range.
   osErrorOS               =  0xFF,       ///< unspecified RTOS error: run-time error but no other error message fits.
-  osEventSemaphore        =  0x100,		 ///< function completed; signal event occurred.
-  osEventRecursive        =  0x200,		 ///< R3 mutex+recursive
-  osEventAsyncQueue		  =  0x400,
-  osEventService		  =  0x800,
+//  osEventSemaphore        =  0x100,		 ///< function completed; signal event occurred.
+//  osEventRecursive        =  0x200,		 ///< R3 mutex+recursive
+//  osEventAsyncQueue		  =  0x400,
+  osEventService		  =  0x800, // надо избавиться?
 
   os_status_reserved      =  0x7FFFFFFF  ///< prevent from enum down-size compiler optimization.
 } osStatus;
@@ -236,6 +237,7 @@ typedef enum  {
 #define osFlagsErrorTimeout   0xFFFFFFFEU ///< osErrorTimeout (-2).
 #define osFlagsErrorResource  0xFFFFFFFDU ///< osErrorResource (-3).
 #define osFlagsErrorParameter 0xFFFFFFFCU ///< osErrorParameter (-4).
+///< osErrorNoMemory (-5)
 #define osFlagsErrorISR       0xFFFFFFFAU ///< osErrorISR (-6).
 
 
@@ -337,9 +339,9 @@ typedef struct os_pool_def osMailQDef_t;
 /// Event structure contains detailed information about an event.
 /// \note MUST REMAIN UNCHANGED: \b os_event shall be consistent in every CMSIS-RTOS.
 ///       However the struct may be extended at the end.
-typedef struct  {
+/* typedef struct  {
   osStatus                 status;     ///< status code: event or error information
-  union  {
+  union  {// \see union sigval POSIX
     uint32_t                    v;     ///< message as 32-bit value
     void                       *p;     ///< message or mail as void pointer
     int32_t               signals;     ///< signal flags
@@ -350,7 +352,9 @@ typedef struct  {
     osMessageQId       message_id;     ///< message id obtained by \ref osMessageCreate
   } def;                               ///< event definition
 #endif
-} osEvent;
+} */
+#include <sys/thread.h>
+typedef struct _Event osEvent;
 
 struct _DataUnit {
 	uint8_t* buffer;
@@ -386,7 +390,9 @@ int32_t osKernelRunning(void);
 /// Get the RTOS kernel system timer counter
 /// \note MUST REMAIN UNCHANGED: \b osKernelSysTick shall be consistent in every CMSIS-RTOS.
 /// \return RTOS kernel system timer as 32-bit value
-uint32_t osKernelSysTick (void);
+static inline uint32_t osKernelSysTick (void) {
+	return clock();
+}
 
 
 /// The RTOS kernel system timer frequency in Hz
@@ -416,7 +422,7 @@ static inline void debug (const char * str){
 	void debug (const char * str);
 #endif // __arm__
 void osEventWait (osEvent *event, uint32_t millisec);
-osStatus osEventTimedWait (osEvent *event, const struct timespec* restrict ts);
+//osStatus osEventTimedWait (osEvent *event, const struct timespec* restrict ts);
 
 
 //  ==== Thread Management ====
@@ -471,12 +477,16 @@ osThreadId osThreadGetId (void);
 osStatus osThreadTerminate (osThreadId thread_id);
 /// Terminate execution of the current thread and remove it from Active Threads.
 _Noreturn void thrd_exit(int res);
+void thrd_yield(void);
 static inline void osThreadExit() {thrd_exit(0);}
 
 /// Pass control to next thread that is in state \b READY.
 /// \return status code that indicates the execution status of the function.
 /// \note MUST REMAIN UNCHANGED: \b osThreadYield shall be consistent in every CMSIS-RTOS.
-osStatus osThreadYield (void);
+static inline osStatus osThreadYield (void) {
+	thrd_yield ();
+	return osOK;
+}
 /// Change priority of an active thread.
 /// \param[in]     thread_id     thread ID obtained by \ref osThreadCreate or \ref osThreadGetId.
 /// \param[in]     priority      new priority value for the thread function.
@@ -492,6 +502,7 @@ osPriority osThreadGetPriority (osThreadId thread_id);
 
 
 osStatus osThreadNotify(osThreadId thread_id);
+#if 0
 /// \deprecated изменить значение ошибки для указанного треда, атомарно читает содержимое
 int osThreadErrno(osThreadId thread_id, int errno);// I2C __attribute__((deprecated));
 /*!	\brief ждать завершения процесса
@@ -546,7 +557,7 @@ void osOnceInitLeave(volatile int * flag, int value);
 BitLock
 RWLock
 */
-
+#endif
 
 //  ==== Generic Wait Functions ====
 /*! Добавить событие в группу */
@@ -565,8 +576,8 @@ static inline osStatus osEventGroupWait (const osEvent* event_group, uint32_t nu
 /// Wait for Timeout (Time Delay).
 /// \param[in]     millisec      time delay value
 /// \return status code that indicates the execution status of the function.
-static inline osStatus osDelay (uint32_t millisec)
-{
+static inline 
+osStatus osDelay (uint32_t millisec) {
     osEvent event = {.status = osEventTimeout};
 	osEventWait(&event, millisec);
 	return osOK;
@@ -600,8 +611,8 @@ int  osServiceTimerExpired (osProcess_t *svc, uint32_t timeout);
 /// \param[in] millisec          timeout value or 0 in case of no time-out
 /// \return event that contains signal, message, or mail information or error code.
 /// \note MUST REMAIN UNCHANGED: \b osWait shall be consistent in every CMSIS-RTOS.
-static inline osEvent osWait (uint32_t millisec)
-{
+static inline 
+osEvent osWait (uint32_t millisec){
     osEvent event = {.status = (osEventSignal/*|osEventSemaphore|osEventMessage|osEventMail*/|osEventTimeout)};
 	osEventWait(&event, millisec);
 	return  event;
@@ -686,7 +697,8 @@ int32_t osSignalClear (osThreadId thread_id, int32_t signals);
 /// \param[in]     millisec      timeout value or 0 in case of no time-out.
 /// \return event flag information or error code.
 /// \note MUST REMAIN UNCHANGED: \b osSignalWait shall be consistent in every CMSIS-RTOS.
-static inline osEvent osSignalWait (int32_t signals, uint32_t millisec)
+static inline 
+osEvent osSignalWait (int32_t signals, uint32_t millisec)
 {
 	if (signals==0) signals = ~0;
     osEvent event = {.status = osEventSignal,.value ={.signals = signals}};

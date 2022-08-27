@@ -9,6 +9,7 @@
 #include <pthread.h> 	// POSIX Threads
 #include <semaphore.h>	// POSIX Semaphores
 #include <svc.h>		// переделать на sys/svccall.h
+#include <sys/thread.h>
 #include <stdlib.h>		// malloc
 // определено в ERRNO
 //enum {EOK, EBUSY, ETIMEDOUT, EINTR, EOWNERDEAD};
@@ -19,44 +20,24 @@ struct _List {
 };
 
 typedef struct _thread osThread_t;
-struct _thread {
-	struct _thread* next;
-	sigset_t sig_mask;
-	int sig_no;
-	void* (*func)(void*);
-	void* arg;
-	pthread_t parent;
-	struct {
-		volatile sig_atomic_t signals;
-		struct {
-			int status;
-		} event;
-		void* result;
-	} process;
-};
+
 struct _mtx {
 	volatile int count;
 };
 struct _cond {
 	List_t* mtx;
 };
-#define osWaitForever 0
-enum {osEventRunning, osEventTimeout, osEventSemaphore, osEventSignal};
 /* 
 Для взаимодействия с ОС используется ряд переменных расположенных в SHARED USER_RO памяти
 Мы используем простую модель памяти, 
 
  */
 volatile osThread_t * thread_current=NULL;// __attribute__((segment("shared")));
-int _FlagSet(uint32_t *flags, sigset_t mask) {
-	return atomic_fetch_or(flags, mask);
-}
-static uint32_t ProcessFlags;
 /*! выделение флагов, 
 	\return индекс первого ненулевого флага, или -1 при невозможности выделения
  */
-int _atomic_FlagAlloc(int *flags) {
-	volatile int* ptr = flags;
+static int atomic_sig_alloc(sigset_t *flags) {
+	volatile int* ptr = (volatile int*)flags;
 	int value, idx;
 	do {
 		value = atomic_int_get(ptr);
@@ -65,8 +46,13 @@ int _atomic_FlagAlloc(int *flags) {
 	}while(!atomic_int_compare_and_exchange(ptr, value, value | (1UL<<idx)));
 	return idx;
 }
+static int atomic_sig_free(sigset_t *flags, int sig_no) {
+	volatile int* ptr = (volatile int*)flags;
+	sigset_t sig_mask = (1UL<<sig_no);
+	return atomic_fetch_and(ptr, ~sig_mask) & sig_mask;
+}
 //#define atomic_list_push(, data) __extension__({ })
-void* atomic_list_pop(volatile void** ptr){
+static void* atomic_list_pop(volatile void** ptr){
 	List_t* item;
 	do {
 		item = atomic_pointer_get(ptr);
@@ -75,7 +61,7 @@ void* atomic_list_pop(volatile void** ptr){
 	atomic_mb();
 	return item;
 }
-void* atomic_list_push(volatile void** ptr, void* data){
+static void* atomic_list_push(volatile void** ptr, void* data){
 	List_t* item = (List_t*)data;
 	List_t* next;
 	do {
@@ -91,13 +77,15 @@ static int osEventTimedWait(int type, uint32_t value, const struct timespec * re
 	clock_t interval = (ts->tv_sec* 1000000U + ts->tv_nsec/1000) - clock();
 	svc3(SVC_EVENT_WAIT, type, value, interval);
 	pthread_t thr = pthread_self();
-	return (thr->process.event.status & osEventTimeout)? ETIMEDOUT: 0;
+	if (thr->process.event.status & type) return 0;
+	return (thr->process.event.status & osEventTimeout)? ETIMEDOUT: EINTR;
 }
 static int osEventWait(int type, uint32_t value, uint32_t interval)
 {
 	svc3(SVC_EVENT_WAIT, type, value, interval);
 	pthread_t thr = pthread_self();
-	return (thr->process.event.status & type)? 0: EINTR;
+	if (thr->process.event.status & type) return 0;
+	return (thr->process.event.status & osEventTimeout)? ETIMEDOUT: EINTR;
 }
 /*!
 Чем отличаются мьютексы: - это невозможность разблокировать в чужом треде 
@@ -145,8 +133,8 @@ int pthread_create(pthread_t *restrict thread, const pthread_attr_t *restrict at
 		__builtin_bzero(thr, sizeof(osThread_t));
 	}
 	thr->parent = (thread==NULL)? NULL: pthread_self();
-	thr->func   = start_routine;
-	thr->arg    = arg;
+	thr->process.func   = start_routine;
+	thr->process.arg    = arg;
 	if (thr->next == NULL) {
 		pthread_t self = pthread_self();
 		atomic_list_push((volatile void**)&self->next, thr);
@@ -197,7 +185,8 @@ int pthread_cond_destroy(pthread_cond_t *cond)
 int pthread_cond_init(pthread_cond_t *restrict cond,
 	const pthread_condattr_t *restrict attr)
 {
-	*(volatile void**)cond=NULL;
+	*(volatile void**)(&cond->mtx)=NULL;
+	//cond->attr = attr;
 	return 0;
 }
 int pthread_cond_timedwait(pthread_cond_t *restrict cond,
@@ -220,6 +209,7 @@ int pthread_mutex_destroy(pthread_mutex_t *mtx){
 }
 int pthread_mutex_init(pthread_mutex_t *restrict mtx, const pthread_mutexattr_t *restrict attr){
 	mtx->count = 1;
+	//mtx->attr = attr;
 	return 0;
 }
 int pthread_mutex_lock(pthread_mutex_t *mtx){
@@ -288,7 +278,7 @@ int pselect(int nfds, fd_set *restrict readfds,
 	int event_type = thr->process.event.status;
 	if (event_type & osEventSignal) {
 		signals     &= atomic_fetch_and(&thr->process.signals, ~signals);
-		readfds ->fds_bits[0]  &= signals;
+		readfds ->fds_bits[0] &= signals;
 		writefds->fds_bits[0] &= signals>>1;
 		errorfds->fds_bits[0] &= signals>>2;
 		thr->sig_mask = omask;// восстановить сигналы
@@ -317,41 +307,6 @@ int select(int nfds, fd_set *restrict readfds,
 	return (event_type & osEventTimeout)?0: -1;
 }
 #if 0
-
-int open(char* path, int mode)
-{
-	char** state;
-	char* token;
-	token = strtok(path,"/");
-	Device_t* dev=THIS_DEVICE;
-	if (strncmp(token, "/dev", 4)==0) {
-		path+=4;
-	}
-	token = strtok(path,"/");
-	if (strncmp(token, "/tty", 4)==0) {
-		id = _number();
-		
-		Object_t* dev = tree_lookup(device->tree, OID(type, id));
-		fd = _flags_alloc();
-		hdl = dev->open(dev->resource, owner, fd);
-	}
-	return fd;
-}
-ssize_t read(int fildes, void *buf, size_t nbyte) {
-	DeviceDriver_t *dev = devices[fildes];
-	return dev->read(dev->hdl, buf, nbyte);
-}
-ssize_t write(int fildes, const void *buf, size_t nbyte){
-	DeviceDriver_t *dev = devices[fildes];
-	return dev->write(dev->hdl, buf, nbyte);
-}
-int close(int fd){
-	Object_t *obj = devices[fd];
-	if (obj->type == DEVICE){
-		dev->close(dev->hdl);
-	}
-	_flags_free(fd);
-}
 int socket(int domain, int type, int protocol) {
 	int fd = _flags_alloc();
 	return fd;
@@ -551,7 +506,7 @@ struct _barrier {
 };
 
 int   pthread_barrier_destroy(pthread_barrier_t *barrier){
-	
+	return 0;
 }
 int   pthread_barrier_init(pthread_barrier_t *restrict barrier,
           const pthread_barrierattr_t *restrict attr, unsigned count)
@@ -560,6 +515,7 @@ int   pthread_barrier_init(pthread_barrier_t *restrict barrier,
 	barrier->count = 0;
 	barrier->threshold = count-1;
 	sem_init(&barrier->sem,0,0);
+	return 0;
 }
 int   pthread_barrier_wait(pthread_barrier_t *barrier)
 {

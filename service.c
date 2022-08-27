@@ -3,11 +3,16 @@
 	\{
  */
 #include "atomic.h"
-#include "thread.h"
+#include <time.h>// clock
+#include <sys/thread.h>
 #include "r3_slice.h"
 #include <stdlib.h>
 //#include <stdio.h>
-#include "cmsis_os.h"
+//#include "cmsis_os.h"
+
+typedef struct _Event osEvent_t;
+typedef struct _Process osProcess_t;
+//typedef struct _Service osService_t;
 
 typedef int (*osServiceFunc)(void*,void * arg);
 typedef struct _list List_t;
@@ -32,12 +37,12 @@ osProcess_t* osServiceCreate(osProcess_t *process, int(*func)(osProcess_t *proce
 	process->event.status = (osEventSignal);
 	process->event.value.signals = ~0;// Any, любые сигналы ждем
 	process->wait.timeout 	= 0;//osKernelSysTickMicroSec(RequestTimeout);
-	process->wait.timestamp = osKernelSysTick();
+	process->wait.timestamp = clock();
 //	svc->next = NULL;
 	return process;
 }
 //static osService_t* current_service=NULL;
-osEvent* osServiceGetEvent(osProcess_t *process)
+osEvent_t* osServiceGetEvent(osProcess_t *process)
 {
 	return &process->event;
 }
@@ -64,7 +69,7 @@ uint32_t osServiceSignal(osProcess_t *process, uint32_t signals)
 	return atomic_fetch_or(&process->signals, signals);
 }
 /*! \brief перемещает сервис ближе к раздаче */
-void osServiceNotify(osService_t *svc)
+void osServiceNotify(osProcess_t *svc)
 {
 
 }
@@ -72,7 +77,7 @@ void osServiceNotify(osService_t *svc)
 	помещает сервис в список в очередь ожидания события
 	\todo перейти на C11
 */
-osStatus osServiceRun   (osProcess_t *process)
+int osServiceRun   (osProcess_t *process)
 {
 //	svc->process.event.status |= (osEventRunning);
 	List_t *entry = g_slice_alloc(sizeof(List_t));
@@ -82,7 +87,7 @@ osStatus osServiceRun   (osProcess_t *process)
 		entry->next = atomic_pointer_get(ptr);
 		atomic_mb();
 	} while (!atomic_pointer_compare_and_exchange(ptr, entry->next, entry));
-	return osOK;
+	return 0;
 }
 /*
 static inline int osProcessTimerExpired(struct _Process *process)
@@ -93,7 +98,7 @@ static inline int osProcessTimerExpired(struct _Process *process)
 int osServiceTimerExpired(osProcess_t* process, uint32_t timeout)
 {
 //	osService_t* svc = current_service;
-	uint32_t system_timestamp = osKernelSysTick();
+	uint32_t system_timestamp = clock();
 	return ((uint32_t)(system_timestamp - process->wait.timestamp)>=timeout);
 }
 
@@ -105,8 +110,8 @@ void osServiceTimerStop  (osProcess_t *process)
 void osServiceTimerStart (osProcess_t* process, uint32_t timeout)
 {
 //	osService_t* svc = current_service;
-	process->wait.timeout 	= osKernelSysTickMicroSec(timeout);
-	process->wait.timestamp = osKernelSysTick();
+	process->wait.timeout 	= (timeout);
+	process->wait.timestamp = clock();
 	process->event.status  |= (osEventTimeout);
 }
 void osServiceTimerRestart (osProcess_t* process)
@@ -116,10 +121,10 @@ void osServiceTimerRestart (osProcess_t* process)
 	process->event.status   |= (osEventTimeout);
 }
 
-void osServiceTimerCreate (osProcess_t *process, uint32_t Timeout)
+void osServiceTimerCreate (osProcess_t *process, uint32_t timeout)
 {
-	process->wait.timeout 	= osKernelSysTickMicroSec(Timeout);
-	process->wait.timestamp = osKernelSysTick();
+	process->wait.timeout 	= (timeout);
+	process->wait.timestamp = clock();
 }
 
 
@@ -133,7 +138,7 @@ void osServiceWorkFlow()
 	while (list) {
 		osProcess_t * process = (osProcess_t *)list->data;
 		// планировщик - функция обработки событий процесса
-		osEvent *event = &process->event;
+		osEvent_t *event = &process->event;
 		if (event->status == osEventComplete)   {// ничего не ждем
 			// event->status = osEventRunning;
 		} else
@@ -158,7 +163,7 @@ void osServiceWorkFlow()
 		}
 		if (event->status & osEventRunning){
 			//current_service = service; // это нужно только чтобы изнутри находить свой идентификатор
-			process->result = ((osServiceFunc)process->func)(process, process->arg);
+			process->result = (void*)(intptr_t)((osServiceFunc)process->func)(process, process->arg);
 			event->value.signals = 0;// очищаем
 			if (process->result<0) {
                  event->status = osEventComplete;

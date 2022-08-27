@@ -32,19 +32,21 @@ struct _tree {
     tree_t* next;	//!< правое дерево
     void * value;
     uint32_t  key;	//!< ключ
+	// может убрать? используется только при балансировке
+#if 0
     uint16_t  prev_depth;//!< число элементов дерева слева
     uint16_t  next_depth;//!< число элементов дерева справа
-
+#endif
 };
 
 typedef void (*tree_serialize_cb)(/*tree_t * leaf, */  uint32_t key, void* value, void* user_data);
 
-tree_t* tree_init(tree_t *leaf, uint32_t key, void* value);
+//tree_t* tree_init(tree_t *leaf, uint32_t key, void* value);
 tree_t* tree_insert(tree_t** root, tree_t* elem);
 tree_t* tree_insert_tree (tree_t** root, tree_t* elem);
 tree_t* tree_find  (tree_t** root, uint32_t key);
-void* tree_lookup(tree_t *node, uint32_t key);
-#if 0
+//void* tree_lookup(tree_t *node, uint32_t key);
+#if 1
 static inline void* tree_lookup(tree_t *node, uint32_t key)
 {
     while(node) {
@@ -53,6 +55,18 @@ static inline void* tree_lookup(tree_t *node, uint32_t key)
         node = (cmp < 0)? node->prev: node->next;
     }
     return NULL;
+}
+static inline tree_t* tree_init(tree_t *leaf, uint32_t key, void* value)
+{
+	leaf->key  = key;
+	leaf->value= value;
+	leaf->prev = NULL;
+	leaf->next = NULL;
+#if 0
+	leaf->prev_depth= 0;
+	leaf->next_depth= 0;
+#endif
+	return leaf;
 }
 #endif
 void* tree_replace_data(tree_t *node, uint32_t key, void* value);
@@ -92,7 +106,7 @@ tree_t* tree_remove (tree_t **root, uint32_t key);
 void    tree_notify (tree_t *root, void (*notify)(tree_t * leaf,  void* user_data), void* user_data);
 void    tree_foreach(tree_t*root, tree_serialize_cb , void* user_data);
 tree_t* tree_merge(tree_t *tree1, tree_t *tree2);
-
+#if 0
 /*! \brief функция фактически возвращает число элементов
     в дереве
 */
@@ -139,6 +153,6 @@ static inline tree_t* tree_rotate_left(tree_t* node)
 	pivot->prev_depth = _depth(node);
 	return pivot;
 }
-
+#endif
 #endif // R3_TREE_H
 

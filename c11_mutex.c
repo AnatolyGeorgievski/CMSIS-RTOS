@@ -2,9 +2,9 @@
 #include <threads.h>
 /*! \ingroup _system
 	\defgroup _mtx_  C11 Mutex
-	
+
 	\{
-	
+
  */
 #include "semaphore.h"
 /*! \brief Приватоное определение мьютекса */
@@ -49,8 +49,8 @@ int  mtx_lock(mtx_t *mtx)
 	if (count) return thrd_success;
 
 	osEvent event = {.status = osEventSemaphore,.value ={.p = (void*)&mtx->count}};
-	return osEventWait(&event, osWaitForever);
-//	return (event.status& osEventTimeout)?thrd_timedout:thrd_success;
+	osEventWait(&event, osWaitForever);
+	return (event.status& osEventTimeout)?thrd_timedout:thrd_success;
 }
 /*! 
 The \b mtx_timedlock function endeavors to block until it locks the mutex pointed to by

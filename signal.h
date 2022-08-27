@@ -14,7 +14,7 @@ extern void __aeabi_SIG_IGN(int);
 #define SIG_IGN (__aeabi_SIG_IGN)
 extern void __aeabi_SIG_ERR(int);
 #define SIG_ERR (__aeabi_SIG_ERR)
-
+void (*signal(int sig, void (*func)(int)))(int);
 #ifdef _AEABI_PORTABLE
 
 extern const int __aeabi_SIGABRT;// = 6;
@@ -48,6 +48,7 @@ extern const int __aeabi_SIGTERM;// = 15;
 */
 #define SIGRTMIN 16
 #define SIGRTMAX 31
+#define RTSIG_MAX (SIGRTMAX-SIGRTMIN+1)
 #define NSIG 32
 
 union sigval {
@@ -74,6 +75,23 @@ struct sigevent {
 
 // могут быть дополнительные параметры \see _POSIX_THREADS
 };
+struct sigaction {
+  int         sa_flags;   	/* Special flags to affect behavior of signal. */
+  sigset_t    sa_mask;		/* Additional set of signals to be blocked
+								during execution of signal-catching function */
+  union {
+    void  (*_handler)(int);	/* Pointer to a signal-catching function or one of the macros SIG_IGN or SIG_DFL */
+#if defined(_POSIX_REALTIME_SIGNALS)
+    void  (*_sigaction)(int, siginfo_t *, void * );/* Pointer to a signal-catching function. */
+#endif
+  } _signal_handlers;
+};
+#define sa_handler    _signal_handlers._handler
+#if defined(_POSIX_REALTIME_SIGNALS)
+#define sa_sigaction  _signal_handlers._sigaction
+#endif
+
+
 /* sigev_notify values
    NOTE: P1003.1c/D10, p. 34 adds SIGEV_THREAD.  */
 
@@ -88,7 +106,6 @@ struct sigevent {
 
 void (* signal(int sig, void (*func)(int)))(int);
 int     raise(int);
-int 	kill (pid_t, int);
 // POSIX.1-2017
 
 #define sigaddset(what,sig) (*(what) |=  (1<<(sig)), 0)

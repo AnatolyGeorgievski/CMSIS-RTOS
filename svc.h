@@ -3,15 +3,10 @@
 
 enum {
 	SVC_YIELD=0,
-	SVC_KILL, //!< выход из треда, параметр osThreadId
+	SVC_SIGNAL, //!< выход из треда, параметр osThreadId
 	SVC_USLEEP,
 	SVC_EVENT_WAIT,
-	SVC_MALLOC,
-	SVC_FREE,
-	SVC_OPEN,
-	SVC_CLOSE,
-	SVC_READ,
-	SVC_WRITE,
+	SVC_EXIT,
 	SVC_COUNT
 };
 /*! \brief аргумент системного запроса, TODO через прерывание SVC */
@@ -26,6 +21,12 @@ enum {
 	register uint32_t __R0 __asm("r0") = (uint32_t)(a0);\
 	register uint32_t __R1 __asm("r1") = (uint32_t)(a1);\
 	__asm volatile ("svc %[immediate]":"=r"(__R0):[immediate] "I" (code), "r"(__R0), "r"(__R1):"memory"); \
+	__R0;})
+#define svc3(code,a0,a1,a2) __extension__({\
+	register uint32_t __R0 __asm("r0") = (uint32_t)(a0);\
+	register uint32_t __R1 __asm("r1") = (uint32_t)(a1);\
+	register uint32_t __R2 __asm("r2") = (uint32_t)(a2);\
+	__asm volatile ("svc %[immediate]":"=r"(__R0):[immediate] "I" (code), "r"(__R0), "r"(__R1), "r"(__R2):"memory"); \
 	__R0;})
 
 static inline void __YIELD()
