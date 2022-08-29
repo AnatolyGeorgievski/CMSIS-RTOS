@@ -1,8 +1,8 @@
 # Интерфейсы POSIX.1-2017 поддерживаемые в R3v2 (описание не завершено)
 Поддержка разделена на субгруппы, представленные в стандарте \
 [POSIX] E.1 Subprofiling Option Groups
-Поддержка и функционал включаются/отключаются с использованием определений в заголовке <unistd.h>.
-Реализация функций синхронизации основана на использовании атомарных не блокирующих операций с счетчиком семафора, см. <semaphore.h>. 
+Поддержка и функционал включаются/отключаются с использованием определений в заголовке <[unistd.h](unistd.h)>.
+Реализация функций синхронизации основана на использовании атомарных не блокирующих операций с счетчиком семафора, см. <[semaphore.h](semaphore.h)>. 
 
 |Сокр| Определение
 |:--- |:--
@@ -10,6 +10,7 @@
 |CS | _POSIX_CLOCK_SELECTION (Clock Selection)
 |MF | _POSIX_MAPPED_FILES (Memory Mapped Files)
 |MPR| _POSIX_MEMORY_PROTECTION (Memory Protection)
+|MSG| _POSIX_MESSAGE_PASSING (Message Passing)
 |RTS| _POSIX_REALTIME_SIGNALS (Realtime Signals Extension)
 |SEM| _POSIX_SEMAPHORES (Semaphores)
 |  | _POSIX_SIGNALS (Signals)
@@ -71,8 +72,15 @@
 
 - SEM POSIX_SEMAPHORES: Semaphores:
 ```diff
-- sem_close( ), sem_open( ), sem_unlink( ), 
++ sem_close( ), sem_open( ), sem_unlink( ), 
 + sem_destroy( ),sem_getvalue( ),sem_init( ),sem_post( ),sem_timedwait( ), sem_trywait( ), sem_wait( )
+```
+
+- MSG POSIX_MESSAGE_PASSING: Message Passing
+```diff
++ mq_close( ), mq_open( ), mq_unlink( ),
++ mq_getattr( ), mq_notify( ), mq_setattr( ), 
++ mq_receive( ), mq_send( ), mq_timedreceive( ), mq_timedsend( )
 ```
 
 - TMR POSIX_TIMERS: Timers: 
