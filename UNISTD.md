@@ -13,6 +13,7 @@
 |MSG| _POSIX_MESSAGE_PASSING (Message Passing)
 |RTS| _POSIX_REALTIME_SIGNALS (Realtime Signals Extension)
 |SEM| _POSIX_SEMAPHORES (Semaphores)
+|SHM| _POSIX_SHARED_MEMORY_OBJECTS (Shared Memory Objects)
 |  | _POSIX_SIGNALS (Signals)
 |SPI| _POSIX_SPIN_LOCKS (Spin Locks)
 |THR| _POSIX_THREADS (Threads)
@@ -76,28 +77,28 @@
 + sem_destroy( ),sem_getvalue( ),sem_init( ),sem_post( ),sem_timedwait( ), sem_trywait( ), sem_wait( )
 ```
 
-- MSG POSIX_MESSAGE_PASSING: Message Passing
+- **MSG POSIX_MESSAGE_PASSING**: Message Passing
 ```diff
 + mq_close( ), mq_open( ), mq_unlink( ),
 + mq_getattr( ), mq_notify( ), mq_setattr( ), 
 + mq_receive( ), mq_send( ), mq_timedreceive( ), mq_timedsend( )
 ```
 
-- TMR POSIX_TIMERS: Timers: 
+- **TMR POSIX_TIMERS**: Timers 
 ```diff
 + clock_getres( ), clock_gettime( ), clock_settime( ), nanosleep( ), 
 + timer_create( ), timer_delete( ), timer_getoverrun( ), timer_gettime( ), timer_settime( )
 ```
-- POSIX_SPIN_LOCKS: Spin Locks
+- **POSIX_SPIN_LOCKS**: Spin Locks
 ```diff
 + pthread_spin_destroy( ), pthread_spin_init( ), pthread_spin_lock( ), pthread_spin_trylock( ), pthread_spin_unlock( )
 ```
-- POSIX_BARRIERS: Barriers
+- **POSIX_BARRIERS**: Barriers
 ```diff
 + pthread_barrier_destroy( ), pthread_barrier_init( ), pthread_barrier_wait( ), 
 - pthread_barrierattr( )
 ```
-- POSIX_DYNAMIC_LINKING: Dynamic Linking
+- **POSIX_DYNAMIC_LINKING**: Dynamic Linking
 ```diff
 + dlclose( ), dlerror( ), dlopen( ), dlsym( )
 ```
