@@ -103,16 +103,18 @@
 ```diff
 + pthread_spin_destroy( ), pthread_spin_init( ), pthread_spin_lock( ), pthread_spin_trylock( ), pthread_spin_unlock( )
 ```
+
 - **POSIX_BARRIERS**: Barriers
 ```diff
 + pthread_barrier_destroy( ), pthread_barrier_init( ), pthread_barrier_wait( ), 
 - pthread_barrierattr( )
 ```
+
 - **POSIX_DYNAMIC_LINKING**: Dynamic Linking
 ```diff
 + dlclose( ), dlerror( ), dlopen( ), dlsym( )
 ```
-- **POSIX_SIGNALS**: Signals:
+- **POSIX_SIGNALS**: Signals
 ```diff
 - abort( ), alarm( ), kill( ), pause( ), raise( ), 
 + sigaddset( ), sigdelset( ), sigemptyset( ), sigfillset( ), sigismember( ), 
@@ -131,6 +133,7 @@ fscanf( ), fwrite( ), getc( ), getchar( ), gets( ), perror( ),
 putc( ), scanf( ), select( ), setbuf( ), setvbuf( ), stderr, stdin, stdout, 
 ungetc( ), vfprintf( ), vfscanf( ), vprintf( ), vscanf( ), 
 ```
+
 - **POSIX_FILE_SYSTEM_R**: Thread-Safe File System
 ```diff
 readdir_r( )
@@ -138,7 +141,7 @@ readdir_r( )
 
 - **POSIX_MAPPED_FILES**: Memory Mapped Files
 ```diff
-mmap( ), munmap( )
++ mmap( ), munmap( )
 ```
 
 - **POSIX_MEMORY_PROTECTION**: Memory Protection
@@ -150,11 +153,6 @@ mprotect( )
 ```diff
 - confstr( ), 
 + environ, errno, getenv( ), setenv( ), sysconf( ), uname( ), unsetenv( )
-```
-
-- **POSIX_REGEXP**: Regular Expressions
-```diff
-regcomp( ), regerror( ), regexec( ), regfree( )
 ```
 
 [POSIX.1-2017] IEEE Std 1003.1tm -2017 (Revision of IEEE Std 1003.1-2008)
