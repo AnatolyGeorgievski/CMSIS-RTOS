@@ -9,9 +9,11 @@ tree_t* tree_init(tree_t *leaf, uint32_t key, void* value)
 {
 	leaf->key  = key;
 	leaf->value= value;
-	leaf->prev_depth= 0;
-	leaf->next_depth= 0;
 	leaf->prev = NULL;
 	leaf->next = NULL;
+#if 0
+	leaf->prev_depth= 0;
+	leaf->next_depth= 0;
+#endif
 	return leaf;
 }

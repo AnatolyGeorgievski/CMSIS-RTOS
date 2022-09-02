@@ -24,19 +24,10 @@ uint8_t sbox[8][16] = {// см. Gost28147_TC26_paramZ
 /* π6' = */ {8, 14, 2, 5, 6, 9, 1, 12, 15, 4, 11, 0, 13, 10, 3, 7},
 /* π7' = */ {1, 7, 14, 13, 0, 5, 8, 3, 4, 15, 10, 6, 9, 12, 11, 2}
 };
-#if 0
-static uint32_t sbox32[16] = {
-    0x1857CB6C, 0x7EDF8384, 0xE2F52526, 0xD56A1832, 0x0698D29A, 0x59214FA5, 0x81C6FA5B, 0x3CAD6DC9,
-    0x4FB07E1E, 0xF47901E8, 0xAB83A74D, 0x601E5477, 0x9D4B3CB0, 0xCA34E9D3, 0xB3E2960F, 0x270CB0F1};
-#endif
 #define ROL(x, n) (((x)<<(n))|((x)>>(32-n)))
 // Bit Field Extract
 #define BEXTR(x, n, len) (((x) >> (n)) & ((1 << (len))-1))
-// Bit Field Insert
-//#define BFI(x, n, len) x = (((x) >> (n)) & ((1 << (len))-1))
-#define BFI(x, y, n, len) x = ((x) & ~(((1 << (len))-1)<<(n))) | ((y & ((1 << (len))-1))<<(n))
 
-//static uint32_t t(uint32_t a) __attribute__((optimize("O3")));
 #pragma GCC optimize("O3")
 
 static inline uint64_t __attribute__((always_inline)) htonll(uint64_t a)
@@ -52,97 +43,13 @@ static inline uint16_t htons (uint16_t a)
     return __builtin_bswap16(a);// LE
 }
 
-static inline uint32_t bfi(uint32_t a, uint32_t b)
-{
-	a = (a & ~(0xF<<4)) ^ ((b<<4) & (0xF<<4));
-	return a;
-}
-typedef uint8_t v4qi __attribute__((__vector_size__(4)));
-static inline 
-uint32_t t2(uint32_t a) 
-{
-	v4qi r0,r1;
-	int i;
-	#pragma GCC unroll 4
-	for (i=0; i<4; i++){
-		r0[i] = sbox[2*i+0][BEXTR(a,(i*8+0),4)];
-		r1[i] = sbox[2*i+1][BEXTR(a,(i*8+4),4)];
-//		BFI (r,s,(i*4),4);
-//		r |= (s & 0xF) <<(i*4);
-	}
-	return *(uint32_t*)&r0 | (*(uint32_t*)&r1)<<4;
-}
-static inline uint32_t t4(uint32_t a)
-{
-    register union {
-        struct {
-            uint32_t u0:4;
-            uint32_t u1:4;
-            uint32_t u2:4;
-            uint32_t u3:4;
-            uint32_t u4:4;
-            uint32_t u5:4;
-            uint32_t u6:4;
-            uint32_t u7:4;
-        };
-        uint32_t x;
-    } r;
-	r.x  = a;
-    r.u0 = sbox[0][r.u0];
-    r.u1 = sbox[1][r.u1];
-    r.u2 = sbox[2][r.u2];
-    r.u3 = sbox[3][r.u3];
-    r.u4 = sbox[4][r.u4];
-    r.u5 = sbox[5][r.u5];
-    r.u6 = sbox[6][r.u6];
-    r.u7 = sbox[7][r.u7];
-	return r.x;
-}
-static inline uint32_t t3(uint32_t a)
-{
-    register union {
-        struct {
-            uint32_t u0:4;
-            uint32_t u1:4;
-            uint32_t u2:4;
-            uint32_t u3:4;
-            uint32_t u4:4;
-            uint32_t u5:4;
-            uint32_t u6:4;
-            uint32_t u7:4;
-        };
-		uint8_t b[4];
-        uint32_t x;
-    } r0, r1, r;
-	r.x  = a;
-    r0.b[0] = sbox[0][r.u0];
-    r1.b[0] = sbox[1][r.u1];
-    r0.b[1] = sbox[2][r.u2];
-    r1.b[1] = sbox[3][r.u3];
-    r0.b[2] = sbox[4][r.u4];
-    r1.b[2] = sbox[5][r.u5];
-    r0.b[3] = sbox[6][r.u6];
-    r1.b[3] = sbox[7][r.u7];
-	return (r0.x & (0x0F0F0F0FUL)) | (r1.x & ~(0x0F0F0F0FUL));
-}
-#if 0
-static inline uint32_t t0(uint32_t a)
-{
-	uint32_t r=0;
-	int i;
-	for (i=0; i<8; i++){
-		register unsigned s = sbox32[BEXTR(a,(i*4),4)];
-		r ^= s & (0xF<<(i*4));
-	}
-	return r;
-}
-#endif
 static inline uint32_t t(uint32_t a)
 {
 	uint32_t r=0;
 	int i;
 	for (i=0; i<8; i++){
-		register uint32_t s = sbox[i][BEXTR(a,(i*4),4)];
+		register uint32_t x = BEXTR(a,(i*4),4);
+		register uint32_t s = sbox[i][x];
 		r ^= s<<(i*4);
 	}
 	return r;
@@ -152,27 +59,10 @@ static uint32_t g(uint32_t k, uint32_t a)
 	return ROL(t(k+a), 11);
 }
 #pragma GCC optimize("O3")
-#if 0
-static uint64_t magma_encrypt1(const uint32_t *K, uint64_t v){
-	uint32_t n1 = v, n2 = v>>32;
-	int i=0;
-	int count = 12;
-	do{
-		i &= 0x7;
-		n2 ^= g(K[i++], n1); 
-		n1 ^= g(K[i++], n2);
-	} while (--count);
-	do{
-		n2 ^= g(K[--i], n1); 
-		n1 ^= g(K[--i], n2);
-	} while(i);
-	return (uint64_t)n1<<32 | n2;
-}
-#endif
 /*!
 	\brief Алгоритм зашифрования
 	\ingroup _magma
-
+Особенность реализации - ключ не развернут. 
 	\param 
  */	
 static uint64_t magma_encrypt(const uint32_t *Key, uint64_t v){
@@ -186,9 +76,6 @@ static uint64_t magma_encrypt(const uint32_t *Key, uint64_t v){
 	} while (--count);
 	count = 4;
 	do{
-//        uint32_t n = n2 ^ g(*K++, n1);
-//        n2 = n1;
-//        n1 = n;
 		n2 ^= g(*K++, n1);
 		n1 ^= g(*K++, n2);
 	} while(--count);
@@ -254,16 +141,14 @@ uint64_t magma_cmac_fini(CCM_t *ctx)
     const int s=8;
 	uint64_t K1 = magma_encrypt(ctx->K, 0ULL);
 	//int of = K1>>63;
-	//printf("R = %016"PRIx64"\n", K1);
 	//K1=(K1<<1);
-	if(__builtin_add_overflow (K1, K1, &K1)) K1^=0x1BULL;// 1th RED BULL
+	if(__builtin_add_overflow (K1, K1, &K1)) K1^=0x1BULL;
 	//printf("K1= %016"PRIx64"\n", K1);
 	if (ctx->len%s) {// не полный блок
 		if(__builtin_add_overflow (K1, K1, &K1)) K1^=0x1BULL;// это равносильно сдвигу и K1<<1 и переносу
 		/// добить нулями и 10000, и единицей
 		//ctx->last_block <<= (s - (ctx->len%s))*8;
         ((uint8_t*)&ctx->last_block)[(ctx->len%s)] = 0x80;
-        //printf("V = %016"PRIx64"\n", __builtin_bswap64(ctx->last_block));
 	}
 	uint64_t m = ctx->sum;
 	m^= htonll(ctx->last_block)^K1;
@@ -293,101 +178,22 @@ void magma_ctr(const uint32_t *K, uint32_t iv, uint8_t* data, size_t len)
 	int i=0;
     int blocks = (len)>>3;
 	for (; i<blocks; i++){
-		__builtin_memcpy(&v, &data[8*i], s);
 		m = magma_encrypt(K, ctr.u64);
+		//__builtin_memcpy(&v, &data[8*i], s);
 		v^= htonll(m>>(8*(8-s)));
-		__builtin_memcpy(&data[8*i], &v, s);
+		*(uint64_t*)&data[8*i] ^= v;
+		//__builtin_memcpy(&data[8*i], &v, s);
 		ctr.u[0]++;
 	}
 	int r = len&0x7;
 	if (r){
-		__builtin_memcpy(&v, &data[8*i], r);
 		m = magma_encrypt(K, ctr.u64);
+//		__builtin_memcpy(&v, &data[8*i], r);
 		v^= htonll(m>>(8*(8-s)));
-		__builtin_memcpy(&data[8*i], &v, r);
+//		__builtin_memcpy(&data[8*i], &v, r);
+		*(uint64_t*)&data[8*i] ^= v;
 	}
 }
-#if 0
-typedef uint64_t poly64x2_t __attribute__((__vector_size__(16)));
-uint64_t GF64_mul_ui (uint64_t a, uint8_t b) {
-	int i;
-	uint64_t r=0;
-	for(i=0; i<8; i++){
-		if (r&(1ULL<<63)) {
-			r = (r<<1) ^ 0x1BULL;
-		} else
-			r = (r<<1);
-		if (b&0x80){
-			r ^=a;
-		}
-		b<<=1;
-	}
-	return r;
-}
-/*! таблица для редуцирования после умножения
-	перенос (4бита) по таблице добавить к остатку 
-*/
-static const uint8_t gf2m_64[] = {
-0x00, 0x1B, 0x36, 0x2D,
-0x6C, 0x77, 0x5A, 0x41,
-0xD8, 0xC3, 0xEE, 0xF5,
-0xB4, 0xAF, 0x82, 0x99,
-};
-uint64_t GF64_mulm   (uint64_t a, uint64_t b)
-{
-	const uint64_t P = 0x1BULL;
-	int i,n;
-	uint64_t aa[16];// 128 байт
-	// расчитать таблицу умножения для 16 значений
-	for (n=0; n<16;n++) aa[n] = 0;
-	for (i=0; i<4; i++){
-		for (n=0; n<16; n++)
-			if (n & (1<<i)) aa[n] ^= a;
-			
-		if (a&(1ULL<<63))
-			a = (a<<1) ^ P;
-		else
-			a = (a<<1);
-	}
-	uint64_t r = 0;
-	for (i=15; i>=0; i--){
-		uint8_t cy = r>>60;
-		r = (r<<4);
-		r^= aa[(b>>(4*i))&0xF];
-		r^= gf2m_64[cy];// редуцирование
-	}
-	return r;
-}
-uint64_t gf64_reduction(poly64x2_t s)
-{
-	uint64_t x1 = s[1];
-	uint64_t x0 = s[0];
-	x1 = x1 ^ x1>>63 ^ x1>>61 ^ x1>>60;
-	return x0 ^ x1 ^ x1<<1 ^ x1<<3 ^ x1<<4;
-}
-void CL_MLA64(poly64x2_t *s, uint64_t a, uint64_t b) {
-	const uint64_t P = 0x1BULL;
-	int i,n;
-	uint64_t aa[16];// таблица умножения 128 байт, 16 элементов
-	// расчитать таблицу умножения для 16 значений
-	for (n=0; n<16;n++) aa[n] = 0;
-	for (i=0; i<4; i++){
-		for (n=0; n<16; n++)
-			if (n & (1<<i)) aa[n] ^= a;
-		if (a&(1ULL<<63))
-			a = (a<<1) ^ P;
-		else
-			a = (a<<1);
-	}
-	uint64_t r = 0;
-	uint32_t cy= 0;
-	for (i=15; i>=0; i--){
-		cy = (cy<<4)|(r>>60);
-		r = (r<<4) ^ aa[(b>>(4*i))&0xF];
-	}
-	(*s)^=(poly64x2_t){r,cy};
-}
-#endif
 #ifdef TEST_MAGMA2
 #include <cmsis_os.h>
 static const uint32_t key_1[] = {
@@ -407,32 +213,6 @@ static void __attribute__((constructor)) _init()
 	printf("=T %u %X\r\n", osKernelSysTick() - ts, (uint32_t)(r64>>32));
 //	extern void ITM_flush();
 //	ITM_flush();
-}
-#endif
-#if 0
-#pragma GCC optimize("Os")
-void magma_ekb (uint32_t* K, const uint8_t *key, int klen, int ekb)
-{
-	const uint32_t* kk = (const uint32_t*)key;
-	int i;
-#if 0 // LSB/MSB
-	for (i=0;i<8; i++){
-		uint32_t k = __builtin_bswap32(kk[i]);
-		K[i+ 0] = k;
-		K[i+ 8] = k;
-		K[i+16] = k;
-		K[31-i] = k;
-	}
-#else
-	for (i=0;i<8; i++){
-		uint32_t k = kk[i];
-		K[ 7-i] = k;
-		K[15-i] = k;
-		K[23-i] = k;
-		K[24+i] = k;
-	}
-#endif
-
 }
 #endif
 #ifdef TEST_MAGMA

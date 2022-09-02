@@ -8,6 +8,7 @@
 #include <cmsis_os.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <signal.h>
 #include <atomic.h>
 
 typedef struct os_timer_cb Timer_t;
@@ -15,13 +16,16 @@ struct os_timer_cb {
 	Timer_t * next;
 	uint32_t timestamp;
 	uint32_t interval;
+	//uint32_t overrun;// [POSIX]
 #if 0
 	uint32_t count; // временно!
 	int32_t jitter; // временно!
 #endif
-	void (*cb)(void * argument);
-	void* data;
-	int type;
+// \see struct sigevent
+	int          sigev_notify;               /* Notification type */
+	union sigval sigev_value;
+	void (*sigev_notify_function)(union sigval argument);
+	osThreadId owner;
 };
 
 static volatile Timer_t *timer_next=NULL;
@@ -38,9 +42,9 @@ osTimerId osTimerCreate (const osTimerDef_t *timer_def, os_timer_type type, void
 	timer->count=0; // счетчик срабатываний
 	timer->jitter=0; // счетчик срабатываний
 #endif
-	timer->type = type;
-	timer->cb = timer_def->ptimer;
-	timer->data = argument;
+	timer->sigev_notify = type;
+	timer->sigev_notify_function  = (void(*)(union sigval))timer_def->ptimer;
+	timer->sigev_value.sival_ptr = argument;
 	timer->next = NULL;
 
 	return timer;
@@ -79,7 +83,7 @@ osStatus osTimerStop (osTimerId timer_id)
 		if (timer == timer_id) {
 //			if (timer_prev) timer_prev->next = timer->next;
 //			else timer_first = timer->next;
-			timer->type = -1; // выключили
+			timer->sigev_notify = -1; // выключили
 			return osOK;
 		}
 //		timer_prev = timer;
@@ -101,8 +105,9 @@ void osTimerWork(uint32_t timestamp)
 		//uint32_t timestamp = osKernelSysTick();
 		if ((uint32_t)(timestamp - timer->timestamp) >= timer->interval)
 		{
-			if (timer->type >= 0) {
-				timer->cb(timer->data); // выполнить функцию таймера
+			if (timer->sigev_notify >= 0) {
+				// если timer->sigev_notify == SIGEV_THREAD, 
+				timer->sigev_notify_function(timer->sigev_value); // выполнить функцию таймера NS
 				timer->timestamp+=timer->interval; // передвинуть по очереди дальше
 #if 0
 				if (timer->type == osTimerPeriodic) { // перезарядить в случае циклического таймера
@@ -114,9 +119,15 @@ void osTimerWork(uint32_t timestamp)
 				} 
 				else
 #endif
-				if (timer->type == osTimerOnce) { // выкинуть таймер из очереди
-					timer->type = -1; // выключили
+				// если timer->sigev_notify == SIGEV_SIGNAL, 
+				// atomic_fetch_or(&timer->owner.process.signals, 1UL<<timer->sig_value.sigval_int);
+				// osThreadNotify(timer->owner);// вызывает переключение задач
+				// timer->owner.process.event |= osEventTimer 
+				if (timer->sigev_notify == osTimerOnce) { // выкинуть таймер из очереди
+					timer->sigev_notify = -1; // выключили
 				} 
+			} else {// выключен
+				
 			}
 		}
 		timer_next = timer->next; // перейти к обработке следующего таймера

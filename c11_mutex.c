@@ -1,13 +1,20 @@
-#include <cmsis_os.h>
+//#include <cmsis_os.h>
 #include <threads.h>
+#include <sys/thread.h>
+#include <svc.h>
+
+typedef struct _thread osThread_t;
+#define THREAD_PTR(x) ((osThread_t*)(x))
+
 /*! \ingroup _system
 	\defgroup _mtx_  C11 Mutex
-	
+
 	\{
-	
+
  */
 #include "semaphore.h"
 /*! \brief Приватоное определение мьютекса */
+typedef struct os_mutex_cb mtx_t;
 struct os_mutex_cb {
 	volatile int count;
 };
@@ -48,9 +55,13 @@ int  mtx_lock(mtx_t *mtx)
 	} while (!atomic_int_compare_and_exchange(mtx, count, 0)); */
 	if (count) return thrd_success;
 
-	osEvent event = {.status = osEventSemaphore,.value ={.p = (void*)&mtx->count}};
-	return osEventWait(&event, osWaitForever);
-//	return (event.status& osEventTimeout)?thrd_timedout:thrd_success;
+//	osEvent event = {.status = osEventSemaphore,.value ={.p = (void*)&mtx->count}};
+//	osEventWait(&event, osWaitForever);
+// надо обратно сделать функцию
+	svc3(SVC_EVENT_WAIT, osEventSemaphore, (void*)&mtx->count, osWaitForever);
+	thrd_t thr = thrd_current();
+	int status = THREAD_PTR(thr)->process.event.status;
+	return (status & osEventSemaphore)?thrd_success:thrd_timedout;
 }
 /*! 
 The \b mtx_timedlock function endeavors to block until it locks the mutex pointed to by
@@ -63,8 +74,13 @@ int  mtx_timedlock(mtx_t *restrict mtx, const struct timespec *restrict ts)
 	int count = semaphore_enter(&mtx->count);
 	if (count) return thrd_success;
 
-	osEvent event = {.status = osEventSemaphore,.value ={.p = (void*)&mtx->count}};
-	return osEventTimedWait(&event, ts);
+	uint32_t interval = (ts->tv_sec*1000000 + ts->tv_nsec/1000) - clock();
+	svc3(SVC_EVENT_WAIT, osEventSemaphore, (void*)&mtx->count, interval);
+	thrd_t thr = thrd_current();
+	int status = THREAD_PTR(thr)->process.event.status;
+	return (status & osEventSemaphore)?thrd_success:thrd_timedout;
+//	osEvent event = {.status = osEventSemaphore,.value ={.p = (void*)&mtx->count}};
+//	return osEventTimedWait(&event, ts);
 	//return (event.status & osEventTimeout)?thrd_timedout: thrd_success;
 	
 }

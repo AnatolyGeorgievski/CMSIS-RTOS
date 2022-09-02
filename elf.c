@@ -6,9 +6,16 @@ https://static.docs.arm.com/ihi0044/g/aaelf32.pdf
 
 https://github.com/ARM-software/abi-aa/releases
 
-.. glibc/elf/elf.h
+\see [] http://www.sco.com/developers/devspecs/
 
-$ gcc -DTEST_ELF -I. -o elf.exe r3core/elf.c r3_args.c
+The file format for libraries of linkable files is the ar format described in [BSABI32].
+
+.. glibc/elf/elf.h
+.. glibc/elf/elf.h
+include/elf.h -- входит в число стандартных хидеров
+
+Сборка для тестирования
+$ gcc -DTEST_ELF -I. -o elf.exe r3core/elf.c r3core/r3_args.c
 $ ./elf.exe -a -i r3core/malloc.o
 Дизассемблер
 $ arm-none-eabi-objdump.exe -d a.out
@@ -16,6 +23,29 @@ $ arm-none-eabi-readelf.exe -a a.out
 
 Для отладки сохраняем ELF перемещаемый от всего проекта и сравниваем результат
 $ arm-none-eabi-ld -T device/SH29COL8/stm32f301x8.ld device/SH29COL8/startup_stm32f301x8.o main.o -r
+
+Тест перемещений
+8000178:       dc0e            bgt.n   8000198
+8000194:       d1eb            bne.n   800016e
+80001b0:       e7ed            b.n     800018e
+80001da:       d804            bhi.n   80001e6
+80001dc:       f7ff ffef       bl      80001be
+80001f0:       f200 846a       bhi.w   8000ac8
+8003196:       f002 f925       bl      80053e4
+80031b2:       f001 fa49       bl      8004648
+80031be:       f000 f93d       bl      800343c
+80031fe:       d108            bne.n   8003212
+800320e:       f003 f8ff       bl      8006410
+
+[AAPCS32]	6.3.1 Use of IP by the linker
+Both the Arm- and Thumb-state BL instructions are unable to address the full 32-bit address space, so it may be
+necessary for the linker to insert a veneer between the calling routine and the called subroutine. Veneers may also be
+needed to support Arm-Thumb inter-working or dynamic linking. Any veneer inserted must preserve the contents of all
+registers except IP (r12) and the condition code flags; a conforming program must assume that a veneer that alters IP
+may be inserted at any branch instruction that is exposed to a relocation that supports inter-working or long branches.
+	\note
+R_ARM_CALL, R_ARM_JUMP24, R_ARM_PC24, R_ARM_THM_CALL, R_ARM_THM_JUMP24 and
+R_ARM_THM_JUMP19 are examples of the ELF relocation types with this property. See AAELF32 for full details
 */
 /*!
 .bss
@@ -77,11 +107,22 @@ $ arm-none-eabi-ld -T device/SH29COL8/stm32f301x8.ld device/SH29COL8/startup_stm
 #include <stdlib.h>
 #include <stdio.h>
 #include "elf.h"
+
+#define EI_MAGIC (0x464C457F) // Little endian
+
+/*! \brief Структура хеш */
+typedef struct _ElfHash ElfHash_t;
+struct _ElfHash {
+	Elf32_Word nbucket;
+	Elf32_Word nchain;
+	Elf32_Word bucket[0];// два массива подряд =nbucket+nchain
+};
+
 /*! \brief контекст разбора */
 typedef struct _ElfCtx ElfCtx_t;
 struct _ElfCtx {
-	Elf32_Shdr_t* shdr;		// таблица сегментов
-	Elf32_Sym_t*  symbols;	// таблица символов
+	Elf32_Shdr* shdr;		// таблица сегментов
+	Elf32_Sym*  symbols;	// таблица символов
 	char* strings;// текстовые константы
 	ElfHash_t *htable;
 	int shnum;// число заголовков секций
@@ -121,55 +162,110 @@ uint8_t * dwarf_leb128_decode(int32_t *dst, int dst_bits,  uint8_t *src)
 
 
 /*! \brief Расчет ключа для Хеш таблицы символов динамической линковки 
- 
+ Функция определена в http://www.sco.com/developers/devspecs/gabi41.pdf
  */
 static 
-uint32_t elf_hash(const char *name)
+uint32_t elf_hash(const unsigned char *name)
 {
 	uint32_t h = 0;
-	uint32_t g;
-	int ch;
-	while ((ch = *name++) != '\0'){
-		h = (h << 4) + ch;
-		if ((g = (h & 0xF0000000UL)) != 0){
+	while (*name != '\0'){
+		h = (h << 4) + *name++;
+		uint32_t g = (h & 0xF0000000UL);
+		if (g) {
 			h ^=  g >> 24;
-			h &= ~g;
 		}
+		h &= ~g;
 	}
 	return h;
 }
 /*! \brief выполнить перемещение по быстрому 
 Анализируются далеко не все варианты, только те что встречаются на практике
+
+Мы хотим на практике решить вопрос, как сделать портируемый код для контроллера.
+Решение - компиляция кода с ключом -fPIC и использование библиотечных вызовов 
+с динамической линковкой. 
  */
 static
-int elf_arm_relocate_fast(Elf32_Rel_t* rel, uint32_t symbol_value, 
+int elf_arm_relocate_fast(Elf32_Rel* rel, uint32_t symbol_value, 
 		uint8_t *segment, uint32_t segment_addr)
 {
 	uint8_t * address =  segment + rel->r_offset;
 	switch((uint8_t)rel->r_info){
 	default: return -1; 
 		break;
+	case R_ARM_NONE:
+	case R_ARM_COPY:
+		break;
+	case R_ARM_GLOB_DAT:
+	case R_ARM_JUMP_SLOT:// Resolves to the address of the specified symbol
+		*(uint32_t *)address = symbol_value;
+		break;
+	case R_ARM_PREL31: {// используется в LLVM и GCC для перемещения непонятно чего в сегменте ARM...
+		int32_t x = *(int32_t *)address;
+		x = x<<1>>1;// sign extend
+		x += symbol_value - segment_addr;
+		*(uint32_t *)address &= 0x80000000UL;
+		*(uint32_t *)address |= x & 0x7fffffff;
+	}	break;
+#if 0
+	// Posiotion Relative Relocations -- PIC position independant code
+	case R_ARM_RELATIVE:// 23
+	case R_ARM_REL32: 
+		*(uint32_t *)address += symbol_value - segment_addr;
+		break;
+	case R_ARM_BASE_PREL:// _GLOBAL_OFFSET_TABLE_
+		*(uint32_t *)address += got_offset_table - segment_addr;// got_offset_addr
+		break;
+	case R_ARM_GOT_BREL:
+		*(uint32_t *)address += sym_attrs[sym_index].got_offset;//symbol_value - got_offset_table;
+		break;
+#endif
+	// Static ABS Relocations
+	case R_ARM_THM_MOVW_ABS_NC:{// Thumb32:(S + A) | T	:lower16  X & 0x0000FFFF
+/* Encoding T3 ARMv7-M: MOVW<c> <Rd>,#<imm16>
+ 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0 | 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0|
+  1  1  1  1  0| i 1 0|0 1 0 0|  imm4  |  0|  imm3  |    Rd   |     imm8      |
+  imm32 = ZeroExtend(imm4:i:imm3:imm8, 32);	*/
+		//! \todo if (STT_FUNC) symbol_value|=1; // thumb
+//		int n = ELF32_R_SYM(rel[i].r_info);
+//		if (ELF32_ST_TYPE(symbols[n].st_info)==STT_FUNC) symbol_value|=1; // thumb
+		uint16_t *insn = (uint16_t*)address;
+		insn[0] = (insn[0] &~0x040F)|((symbol_value>>12)&0x000F)|((symbol_value>>1)&0x0400);
+		insn[1] = (insn[1] &~0x70FF)|((symbol_value>> 0)&0x00FF)|((symbol_value<<4)&0x7000);
+	} break;
+	case R_ARM_THM_MOVT_ABS:{// Thumb32: S + A		:upper16  X & 0xFFFF0000
+/* Encoding T1 ARMv7-M:	MOVT<c> <Rd>,#<imm16>
+ 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0 | 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0|
+  1  1  1  1  0| i 1 0|1 1 0 0|  imm4  |  0|  imm3  |    Rd   |     imm8      |
+  imm16 = imm4:i:imm3:imm8;	*/
+		symbol_value>>16;
+		uint16_t *insn = (uint16_t*)address;
+		insn[0] = (insn[0] &~0x040F)|((symbol_value>>12)&0x000F)|((symbol_value>>1)&0x0400);
+		insn[1] = (insn[1] &~0x70FF)|((symbol_value>> 0)&0x00FF)|((symbol_value<<4)&0x7000);
+	} break;
 	case R_ARM_TARGET1:// появляется только в разделе .init и .fini
 	case R_ARM_ABS32: {// Data: (S + A) | T
 		printf(" -- R_ARM_ABS32 0x%08X=>0x%08X\n", *(uint32_t *)address, *(uint32_t *)address + symbol_value);
 		*(uint32_t *)address += symbol_value;
 	} break;
 	case R_ARM_THM_JUMP24:
-	case R_ARM_THM_CALL: { // Thumb32: ((S + A) | T) - P, T - признак Thumb 
+	case R_ARM_THM_PC22: { // Thumb32: ((S + A) | T) - P, T - признак Thumb 
 		symbol_value -= (segment_addr + rel->r_offset +4);
-		uint32_t insn = *(uint32_t*)address;
-		insn &= ~0x07FF07FF;
-		insn |= (symbol_value<<15) & 0x07FF0000;
-		insn |= (symbol_value>>12) & 0x000007FF;
+		uint16_t *insn = (uint16_t*)address;
+		//insn &= ~0x07FF07FF;// этот метод годится для длины <22 бит (+/-4Мбайта)
+		//insn |= (symbol_value<<15) & 0x07FF0000;//   imm11
+		//insn |= (symbol_value>>12) & 0x000007FF;// S|imm10
+		insn[0] = (insn[0] &~0x07FF)|((symbol_value>>12)&0x07FF);
+		insn[1] = (insn[1] &~0x07FF)|((symbol_value>> 1)&0x07FF);
+		
 		printf(" -- R_ARM_THM_CALL 0x%08X=>0x%08X\n", *(uint32_t *)address, insn);
-		*(uint32_t*)address = insn;
 	} break;
 	}
 	return 0;
 }
 #if 0
 static
-int elf_arm_relocate_dynamic(Elf32_Rel_t* rel, uint32_t symbol_value, 
+int elf_arm_relocate_dynamic(Elf32_Rel* rel, uint32_t symbol_value, 
 		uint8_t *segment, uint32_t segment_addr)
 {
 	switch ((uint8_t)rel->r_info){
@@ -194,7 +290,7 @@ int elf_arm_relocate_dynamic(Elf32_Rel_t* rel, uint32_t symbol_value,
 	\param segment_addr - адрес сегмента (кода/данных) относительного которого расчитываются перемещения.
  */
 static
-int elf_relocate_segment(Elf32_Rel_t* reloc, int r_num, 
+int elf_relocate_segment(Elf32_Rel* reloc, int r_num, 
 		uint8_t* segment, Elf32_Off segment_addr, ElfCtx_t *ctx) 
 {
 	int i;
@@ -216,7 +312,7 @@ int elf_relocate_segment(Elf32_Rel_t* reloc, int r_num,
 	return i; // номер следующей записи в сегменте перемещений
 }
 __attribute__((noinline))
-static int elf_section_id(Elf32_Shdr_t *shdr, int shnum, int type_id)
+static int elf_section_id(Elf32_Shdr *shdr, int shnum, int type_id)
 {
 	int i;
 	if (shdr==NULL) return 0;
@@ -239,7 +335,7 @@ static void* elf_section_load(FILE* fp, uint32_t offset, size_t size)
 /*! \brief Найти символ с использованием хеш таблиц
 	\return возвращает индекс в таблице символов .symtab/.dyntab или STN_UNDEF=0
  */
-static uintptr_t elf_hashtable_lookup(const ElfHash_t *htable, const char *name, Elf32_Sym_t* dynsym, const char* dynstr)
+static uintptr_t elf_hashtable_lookup(const ElfHash_t *htable, const char *name, Elf32_Sym* dynsym, const char* dynstr)
 {
 	uint32_t key = elf_hash(name);
 	uint32_t y = htable->bucket[key % htable->nbucket];// первая таблица по хешам
@@ -286,21 +382,21 @@ static uint32_t elf_hashtable_insert(ElfHash_t *htable, const char *name)
 typedef struct _dlCtx dlCtx_t;
 struct _dlCtx {
 	ElfHash_t  * htable;
-	Elf32_Sym_t* dynsym;
+	Elf32_Sym* dynsym;
 	char * dynstr;
 };
 
 void* dlopen(const char* filename, int flags)
 {
 	FILE* fp = fopen(filename, "rb");
-	ElfHeader_t* elf_header = malloc(sizeof(ElfHeader_t));
+	Elf32_Ehdr* elf_header = malloc(sizeof(Elf32_Ehdr));
 	// загрузкить заголовок
-	fread(&elf_header, 1, sizeof(ElfHeader_t), fp);
+	fread(&elf_header, 1, sizeof(Elf32_Ehdr), fp);
 	uint32_t e_shoff = elf_header->e_shoff;	// смещение секции заголовков сегментов
 	uint32_t shnum   = elf_header->e_shnum;	// число заголовков сегментов
 	free(elf_header);
 	dlCtx_t * ctx = malloc(sizeof(dlCtx_t));
-	Elf32_Shdr_t* shdr = elf_section_load(fp, e_shoff, shnum * sizeof(Elf32_Shdr_t));
+	Elf32_Shdr* shdr = elf_section_load(fp, e_shoff, shnum * sizeof(Elf32_Shdr));
 	int idx;
 	// выполнить Relocations
 	// можно загрузить секцию DYNAMIC 
@@ -320,7 +416,6 @@ void* dlsym(void* handler, const char* name)
 	uintptr_t addr = elf_hashtable_lookup(ctx->htable, name, ctx->dynsym, ctx->dynstr);
 	return (void*)addr;
 }
-extern
 void  dlclose(void* handler)
 {
 	dlCtx_t * ctx = handler;
@@ -329,11 +424,12 @@ void  dlclose(void* handler)
 	free(ctx->dynstr);
 	free(ctx);
 }
-/*
+/* The Dynamic Linking library, libdl
 #define EXPORT_SYMBOL(sym) extern __typeof__(sym) sym
 EXPORT_SYMBOL(dlopen);
 EXPORT_SYMBOL(dlsym);
 EXPORT_SYMBOL(dlclose);
+EXPORT_SYMBOL(dlerror);
 */
 
 
@@ -343,6 +439,17 @@ EXPORT_SYMBOL(dlclose);
 #include <stdio.h>
 #include <string.h>
 #include "r3_args.h"
+
+struct _E_indent {
+	uint32_t magic;	// 0x7f 0x45 0x4c 0x46
+	uint8_t class;	// 1- 32 bit, 2- 64 bit
+	uint8_t data;	// 1- little endian, 2- big endian
+	uint8_t version;// 1- current
+	uint8_t os_abi;
+	uint8_t abi_version;
+	uint8_t pad[7];
+};
+
 
 typedef struct _Names Names_t;
 struct _Names {
@@ -357,7 +464,7 @@ const Names_t pt_names[] = {
 	{PT_INTERP, 	"INTERP"},
 	{PT_NOTE, 		"NOTE"},
 	{PT_SHLIB, 		"SHLIB"},
-	{PT_SHDR, 		"SHDR"},
+	{PT_PHDR, 		"PHDR"},// PT_SHDR
 	{PT_ARM_EXIDX, 	"EXIDX"},
 };
 
@@ -376,16 +483,23 @@ The following nomenclature is used for the operation:
 const Names_t rel_type_names[] = {
 	{ 0, 	"R_ARM_NONE"},
 	{ 2, 	"R_ARM_ABS32"}, 	// Data:  (S + A) | T
+	{ 3,	"R_ARM_REL32"},		// Data: ((S + A) | T) | -P
+	{ 5, 	"R_ARM_ABS16"},		// 
 	{10, 	"R_ARM_THM_CALL"},  // Thumb32: ((S + A) | T) - P :=X & 0x01FFFFFE \sa R_ARM_THM_PC22
-	{20,	"R_ARM_COPY"},		// Misc
+// Dynamic relocations
+	{20,	"R_ARM_GLOB_COPY"},	// Misc
 	{21,	"R_ARM_GLOB_DAT"},  // Data:  (S + A) | T
 	{22, 	"R_ARM_JUMP_SLOT"}, // Data:  (S + A) | T
 	{23, 	"R_ARM_RELATIVE"},  // Data: B(S)+ A
-	{30, 	"R_ARM_THM_JUMP24"},// Thumb32: ((S + A) | T) - P
+	{25, 	"R_ARM_BASE_PREL"},	// Data: B(S)+ A – P
+	{26, 	"R_ARM_GOT_BREL"},	// Data: GOT(S) + A – GOT_ORG
+	{30, 	"R_ARM_THM_JUMP24"},// Thumb32: ((S + A) | T) - P :=X & 0x01FFFFFE
 	{38,	"R_ARM_TARGET1"}, 	// Misc
 	{42, 	"R_ARM_PREL31"},	// Data, 
-	{47,	"R_ARM_THM_MOVW_ABS_NC"},// Thumb32:(S + A) | T	:lower16 
-	{48,	"R_ARM_THM_MOVT_ABS"}, 	 // Thumb32: S + A		:upper16
+	{47,	"R_ARM_THM_MOVW_ABS_NC"},// Thumb32:(S + A) | T	:lower16  X & 0x0000FFFF
+	{48,	"R_ARM_THM_MOVT_ABS"}, 	 // Thumb32: S + A		:upper16  X & 0xFFFF0000
+	{49,	"R_ARM_THM_MOVW_PREL_NC"},	// Thumb32:((S + A) | T) - P	:lower16 
+	{50,	"R_ARM_THM_MOVT_PREL"},		// Thumb32:  (S + A) - P		:upper16
 	{51, 	"R_ARM_THM_JUMP19"},	 // ((S + A) | T) - P
 //	{93, 	"R_ARM_THM_TLS_CALL"},
 //	{102, 	"R_ARM_THM_JUMP11"},	 // Thumb16: S + A - P
@@ -393,7 +507,7 @@ const Names_t rel_type_names[] = {
 //  Armv8.1-M Mainline Branch Future relocations:
 	{136, 	"R_ARM_THM_BF16"},	// ((S + A) | T) - P :=X & 0x0001FFFE
 	{137, 	"R_ARM_THM_BF12"},	// ((S + A) | T) - P :=X & 0x00001FFE
-	{137, 	"R_ARM_THM_BF18"},	// ((S + A) | T) - P :=X & 0x0007FFFE
+	{138, 	"R_ARM_THM_BF18"},	// ((S + A) | T) - P :=X & 0x0007FFFE
 
 };
 
@@ -407,7 +521,7 @@ The <object> identifier is in the form "<type>,<instance>" where <type> is eithe
 
 Link with -ldl. 
 */
-#include <dlfcn.h>
+//#include <dlfcn.h>
 void* 	dlopen(const char* filename, int flag);
 void*  	dlsym(void* dl, const char* name);
 int 	dlclose(void *dl); 
@@ -442,42 +556,53 @@ int   munmap(void *addr, size_t len);
   1  1  1  1  0| S|  cond |    imm6    |  1  0|J1  0 J2|        imm11         |
   imm32 = SignExtend(S:J2:J1:imm6:imm11:'0', 32); */
 #define ARM_THM_JUMP19_BDEP(insn,a) ((((a) & 0x00000FFE)<<15) | (((a) & 0x0003F000)>>12) | (((a) & 0x00040000)<<11) | (((a) & 0x00080000)<< 8) | (((a) & 0x00100000)>>10) | ((insn)&~0x2FFF043F))
-#if 0
+#if 1
 /* Encoding T4 ARMv7-M: B<c>.W <label>
  15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0 | 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0|
   1  1  1  1  0| S|      imm10         |  1  0|J1  1 J2|        imm11         |
   I1 = NOT(J1 EOR S); I2 = NOT(J2 EOR S); imm32 = SignExtend(S:I1:I2:imm10:imm11:'0', 32); */
-#define ARM_THM_JUMP24_BDEP(insn,a) ((((a) & 0x00000FFE)<<15) | (((a) & 0x003FF000)>>12) | (((a) & 0x00400000)<<5) | (((a) & 0x00800000)<< 6) | (((a) & 0x01000000)>>14) | ((insn)&~0x2FFF07FF))
+#define ARM_THM_JUMP24_BDEP(insn,a) ((((a) & 0x00000FFE)<<15) | (((a) & 0x003FF000)>>12) | ((~((a)^((a)>>31)) & 0x00400000)<<5) | ((~((a)^((a)>>31)) & 0x00800000)<< 6) | (((a) & 0x01000000)>>14) | ((insn)&~0x2FFF07FFUL))
 /* Encoding T1 All versions of the Thumb instruction set: BL<c> <label>
  15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0 | 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0|
   1  1  1  1  0| S|      imm10         |  1  1|J1  1 J2|        imm11         |
-  I1 = NOT(J1 EOR S); I2 = NOT(J2 EOR S); imm32 = SignExtend(S:I1:I2:imm10:imm11:'0', 32); */
-#define ARM_THM_CALL_BDEP(insn,a)   ((((a) & 0x00000FFE)<<15) | (((a) & 0x003FF000)>>12) | (((a) & 0x00400000)<<5) | (((a) & 0x00800000)<< 6) | (((a) & 0x01000000)>>14) | ((insn)&~0x2FFF07FF))
-#else
+  I1 = NOT(J1 EOR S); I2 = NOT(J2 EOR S); imm32 = SignExtend(S:I1:I2:imm10:imm11:'0', 32); 
+  Интересно, на Thumb-2 можно разбить на две инструкции по 16 бит. Кодирование до Thumb-2 J1=J2=1
+  */
+#define ARM_THM_CALL_BDEP(insn,a)   ((((a) & 0x00000FFE)<<15) | (((a) & 0x003FF000)>>12) | ((~((a)^(a>>31)) & 0x00400000)<<5) | ((~((a)^(a>>31)) & 0x00800000)<< 6) | (((a) & 0x01000000)>>14) ^ ((insn)&~0x2FFF07FFUL))
+#else// для архитектуры до Thumb-2 J1=J2=1 при адресации 22 бита разницы нет.
 #define ARM_THM_JUMP24_BDEP(insn,a)   ((((a) & 0x00000FFE)<<15) | (((a) & 0x003FF000)>>12) | (((a) & 0x01000000)>>14) | ((insn)&~0x07FF07FF))
 #define ARM_THM_CALL_BDEP(insn,a)   ((((a) & 0x00000FFE)<<15) | (((a) & 0x003FF000)>>12) | (((a) & 0x01000000)>>14) | ((insn)&~0x07FF07FF))
 #endif
 
+// 80031be:       f000 f93d       bl      800343c
+static __attribute__((constructor)) void init_()
+{
+	// f93df000        bl      800343c
+	uint32_t insn = ARM_THM_CALL_BDEP (0xFFFEF7FFUL,(int32_t)(0x800343cUL-0x80031beUL-4));
+	printf(":%04x %04x f000 f93d\n ", (uint16_t)insn&0xFFFF, (uint16_t)(insn>>16));
+}
 
 /* Encoding T3 ARMv7-M: MOVW<c> <Rd>,#<imm16>
  15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0 | 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0|
   1  1  1  1  0| i 1 0|0 1 0 0|  imm4  |  0|  imm3  |    Rd   |     imm8      |
   imm32 = ZeroExtend(imm4:i:imm3:imm8, 32);	*/
-#define ARM_THM_MOVW_BDEP(insn,a) ((((a) & 0x0000F000)>>12) | (((a) & 0x00000700)<<20) | (((a)& 0x00000800)>> 1) | (((a) & 0x000000FF)<<16) | ((insn)&~0x70FF040F))
+#define ARM_THM_MOVW_BDEP(insn,a) ((((a) & 0x0000F000)>>12) | (((a) & 0x00000700)<<20) | (((a)& 0x00000800)>> 1) | (((a) & 0x000000FF)<<16) | ((insn)&~0x70FF040FUL))
 /* Encoding T1 ARMv7-M:	MOVT<c> <Rd>,#<imm16>
  15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0 | 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0|
-  1  1  1  1| 0  i 1 0|1 1 0 0|  imm4  |  0|  imm3  |    Rd   |     imm8      |
+  1  1  1  1  0| i 1 0|1 1 0 0|  imm4  |  0|  imm3  |    Rd   |     imm8      |
   imm16 = imm4:i:imm3:imm8;	*/
-#define ARM_THM_MOVT_BDEP(insn,a) ((((a) & 0xF0000000)>>28) | (((a) & 0x07000000)<< 4) | (((a)& 0x08000000)>>17) | (((a) & 0x00FF0000)>> 0) | ((insn)&~0x70FF040F))
-int elf_arm_relocate(Elf32_Rel_t* rel, const Elf32_Sym_t * symbols, 
+#define ARM_THM_MOVT_BDEP(insn,a) ((((a) & 0xF0000000)>>28) | (((a) & 0x07000000)<< 4) | (((a)& 0x08000000)>>17) | (((a) & 0x00FF0000)>> 0) | ((insn)&~0x70FF040FUL))
+int elf_arm_relocate(Elf32_Rel* rel, const Elf32_Sym * symbols, 
 		uint8_t *segment, int increment, uint32_t segment_addr)
 {
 	int n = ELF32_R_SYM(rel->r_info);
 	uint8_t * address =  segment + rel->r_offset;
 	switch(rel->r_info & 0xFF){
-//	case R_ARM_PREL31: // используется в LLVM для перемещения непонятно чего
 	default:
 		return -1;
+		break;
+	case R_ARM_PREL31: // используется в LLVM и GCC для перемещения непонятно чего
+		
 		break;
 	case R_ARM_TARGET1:// появляется только в разделе .init и .fini
 	case R_ARM_ABS32: {//  (S + A) | T
@@ -513,7 +638,8 @@ int elf_arm_relocate(Elf32_Rel_t* rel, const Elf32_Sym_t * symbols,
 		printf(" = %04X %04X\n", insn&0xFFFF, (insn>>16)&0xFFFF );
 		*(uint32_t*)address = insn;
 	} break;*/
-	case R_ARM_THM_CALL: { // Thumb32: ((S + A) | T) - P
+//	case R_ARM_THM_CALL: -- имя переопределено ARM
+	case R_ARM_THM_PC22: { // Thumb32: ((S + A) | T) - P
 		uint32_t insn = *(uint32_t*)address;
 //		printf(" = %04X %04X s.val=%08x sec=%d ", insn&0xFFFF, (insn>>16)&0xFFFF , symbols[n].st_value, symbols[n].st_shndx);
 		uint32_t addend = symbols[n].st_value + increment-(segment_addr + rel->r_offset +4);
@@ -538,8 +664,11 @@ const Names_t snt_names[] = {
 	{SHT_REL, 		"REL"},
 	{SHT_SHLIB, 	"SHLIB"},
 	{SHT_DYNSYM, 	"DYNSYM"},
+	{SHT_NUM, 	"NUM"},
 	{SHT_INIT_ARRAY, 		"INIT_ARRAY"},
 	{SHT_FINI_ARRAY, 		"FINI_ARRAY"},
+	{SHT_GROUP,	"GROUP"},
+//	{SHT_RELR,	"RELR"},
 	{SHT_ARM_EXIDX, 		"ARM_EXIDX"},
 	{SHT_ARM_ATTRIBUTES, 	"ARM_ATTR"},
 };
@@ -567,34 +696,8 @@ const Names_t stt_names[] = {
 	{STT_SECTION, "SECTION"},
 	{STT_FILE,    "FILE"},
 };
-enum {
-	DT_NULL=0,
-	DT_NEEDED,
-	DT_PLTRELSZ,
-	DT_PLTGOT,
-	DT_HASH,
-	DT_STRTAB,
-	DT_SYMTAB,
-	DT_RELA,
-	DT_RELASZ,
-	DT_RELAENT,
-	DT_STRSZ,
-	DT_SYMENT,
-	DT_INIT,
-	DT_FINI,
-	DT_SONAME,
-	DT_RPATH,
-	DT_SYMBOLIC,
-	DT_REL,
-	DT_RELSZ,
-	DT_RELENT,
-	DT_PLTREL,
-	DT_DEBUG,
-	DT_TEXTREL,
-	DT_JMPREL,
-	DT_RELCOUNT = 0x6ffffffa,
-};
-const Names_t dt_names[] = {
+
+const Names_t dt_names[DT_NUM] = {
 	{DT_NULL,    "NULL"},
 	{DT_NEEDED,  "NEEDED"},
 	{DT_PLTRELSZ,"PLTRELSZ"},
@@ -619,7 +722,6 @@ const Names_t dt_names[] = {
 	{DT_DEBUG,   "DEBUG"},
 	{DT_TEXTREL, "TEXTREL"},
 	{DT_JMPREL,  "JMPREL"},
-	{DT_RELCOUNT,"RELCOUNT"},
 };
 
 // bsearch(uint32_tconst void *key, const void *base, size_t num, size_t size,
@@ -709,7 +811,7 @@ uint32_t ntohl(uint32_t x)
 }
 int main (int argc, char *argv[])
 {
-	ElfHeader_t elf_header;
+	Elf32_Ehdr elf_header;
 	
 	GOptionContext *opt_context;
     opt_context = g_option_context_new ("- command line interface");
@@ -826,9 +928,10 @@ struct _Elf_Arsym {
 		return 0;
 	}
 	
-	size_t size = fread( &elf_header, 1, sizeof(ElfHeader_t), fp);
-	if (!(size==sizeof(ElfHeader_t))) return 0;
-	if (!(elf_header.e_ident.magic==EI_MAGIC)) return 0;
+	size_t size = fread( &elf_header, 1, sizeof(Elf32_Ehdr), fp);
+	if (!(size==sizeof(Elf32_Ehdr))) return 0;
+	struct _E_indent *e_ident = (struct _E_indent *)elf_header.e_ident;
+	if (!(e_ident->magic==EI_MAGIC)) return 0;
 /*!
 Порядок разбора:
 1. Выделить заголовок формата, убедиться что это ELF32 для данной платформы, перемещаемый, загружаемый и т.д отвечает цели. Содержит таблицу секций и/или таблицу программ.
@@ -836,12 +939,12 @@ struct _Elf_Arsym {
 */
 	if (options.file_header || options.all) {// отобразить заголовок
 		printf("ELF Header\n");
-		printf("\tMagic:\t\t%08X\n",elf_header.e_ident.magic);
-		printf("\tClass:\t\t%s\n",  elf_header.e_ident.class==1?"ELF32": "ELF64");
-		printf("\tData:\t\t%s\n",   elf_header.e_ident.data==1?"LSB": "MSB");
-		printf("\tVersion:\t%s\n",  elf_header.e_ident.version==1?"1 (current)": "unknown");
-		printf("\tOS/ABI:\t\t%s\n", elf_header.e_ident.os_abi==0?"UNIX - System V":"unknown");
-		printf("\tABI version:\t%d\n", elf_header.e_ident.abi_version);
+		printf("\tMagic:\t\t%08X\n",e_ident->magic);
+		printf("\tClass:\t\t%s\n",  e_ident->class==1?"ELF32": "ELF64");
+		printf("\tData:\t\t%s\n",   e_ident->data==1?"LSB": "MSB");
+		printf("\tVersion:\t%s\n",  e_ident->version==1?"1 (current)": "unknown");
+		printf("\tOS/ABI:\t\t%s\n", e_ident->os_abi==0?"UNIX - System V":"unknown");
+		printf("\tABI version:\t%d\n", e_ident->abi_version);
 		printf("\tType:\t\t(%d) %s\n", elf_header.e_type, get_name(elf_header.e_type, NAMES(type_names)));
 		printf("\tMachine:\t(%d) %s\n",   elf_header.e_machine, elf_header.e_machine==40?"ARM":"unknown");
 		printf("\tVersion:\t%d\n",        elf_header.e_version);
@@ -856,14 +959,14 @@ struct _Elf_Arsym {
 		printf("\tSection hdr str table:\t%d\n",   	elf_header.e_shstrndx);
 	}
 
-	Elf32_Shdr_t *shdr=NULL; // таблица секций
+	Elf32_Shdr *shdr=NULL; // таблица секций
 	char* shstrtab=NULL; // таблица имен секций
-	if (1 && elf_header.e_shoff!=0 && elf_header.e_shentsize==sizeof(Elf32_Shdr_t)) {// загрузить заголовки секций
-		shdr = elf_section_load(fp, elf_header.e_shoff, elf_header.e_shnum * sizeof(Elf32_Shdr_t));
+	if (1 && elf_header.e_shoff!=0 && elf_header.e_shentsize==sizeof(Elf32_Shdr)) {// загрузить заголовки секций
+		shdr = elf_section_load(fp, elf_header.e_shoff, elf_header.e_shnum * sizeof(Elf32_Shdr));
 /*		fpos_t fpos = elf_header.e_shoff;
 		fsetpos(fp, &fpos);
-		shdr = calloc(elf_header.e_shnum, sizeof(Elf32_Shdr_t));
-		size = fread(shdr, elf_header.e_shnum, sizeof(Elf32_Shdr_t), fp); */
+		shdr = calloc(elf_header.e_shnum, sizeof(Elf32_Shdr));
+		size = fread(shdr, elf_header.e_shnum, sizeof(Elf32_Shdr), fp); */
 		if (elf_header.e_shstrndx) {// таблица строк может отсутствовать
 			shstrtab = elf_section_load(fp, shdr[elf_header.e_shstrndx].sh_offset, shdr[elf_header.e_shstrndx].sh_size);
 /*			shstrtab = malloc(shdr[elf_header.e_shstrndx].sh_size);
@@ -897,11 +1000,11 @@ struct _Elf_Arsym {
 		printf("Program headers (%d):\n"
 			   " Type       Offset   Virt.addr  Phys.addr  File sz Mem.sz  Flg Align\n",
 			   elf_header.e_phnum);
-		Elf32_Phdr_t* phdr= elf_section_load(fp, elf_header.e_phoff, elf_header.e_phnum * sizeof(Elf32_Phdr_t));
+		Elf32_Phdr* phdr= elf_section_load(fp, elf_header.e_phoff, elf_header.e_phnum * sizeof(Elf32_Phdr));
 /*		fpos_t fpos = elf_header.e_phoff;
 		fsetpos(fp, &fpos);
-		Elf32_Phdr_t phdr[elf_header.e_phnum];
-		size = fread(&phdr[0], elf_header.e_phnum, sizeof(Elf32_Phdr_t), fp);*/
+		Elf32_Phdr phdr[elf_header.e_phnum];
+		size = fread(&phdr[0], elf_header.e_phnum, sizeof(Elf32_Phdr), fp);*/
 		int i;
 		for (i=0; i<elf_header.e_phnum; i++){
 			printf(" %-10s 0x%06x 0x%08x 0x%08x 0x%05x 0x%05x %c%c%c 0x%x\n", 
@@ -947,8 +1050,8 @@ int section_index(const char* name)
 		}
 	}
 	ElfHash_t*	 htable  = NULL;
-	Elf32_Dyn_t* tags    = NULL;
-	Elf32_Sym_t* symbols = NULL;
+	Elf32_Dyn* tags    = NULL;
+	Elf32_Sym* symbols = NULL;
 	char* 		 strings = NULL; 
 	idx = section_id(SHT_HASH, 	 ".hash");
 	if (idx >= 0) {
@@ -963,12 +1066,12 @@ int section_index(const char* name)
 		//"Чис:    Знач   Разм Тип     Связ   Vis      Индекс имени"
 		" Tag                Name/Value\n", 
 		shstrtab+shdr[idx].sh_name,
-		shdr[idx].sh_size/sizeof(Elf32_Dyn_t));
+		shdr[idx].sh_size/sizeof(Elf32_Dyn));
 
 		int i;
-		for (i=0; i<shdr[idx].sh_size/sizeof(Elf32_Dyn_t); i++){
+		for (i=0; i<shdr[idx].sh_size/sizeof(Elf32_Dyn); i++){
 			const char* name = get_name(tags[i].d_tag, NAMES(dt_names));
-			printf("  %-20.20s %x\n", name, tags[i].d_un.d_val);
+			printf("  %-20.20s(%d) %x\n", name,tags[i].d_tag, tags[i].d_un.d_val);
 			if (tags[i].d_tag==DT_NULL) break;
 		}
 	}
@@ -996,10 +1099,10 @@ int section_index(const char* name)
 		//"Чис:    Знач   Разм Тип     Связ   Vis      Индекс имени"
 		" No: Value    Size Type    Bind   Vis      Idx Name\n", 
 		shstrtab+shdr[idx].sh_name,
-		shdr[idx].sh_size/sizeof(Elf32_Sym_t));
+		shdr[idx].sh_size/sizeof(Elf32_Sym));
 		char buf[12];
 		int i;
-		for (i=0; i<shdr[idx].sh_size/sizeof(Elf32_Sym_t); i++){
+		for (i=0; i<shdr[idx].sh_size/sizeof(Elf32_Sym); i++){
 			const char* shn = get_name(symbols[i].st_shndx, NAMES(shn_names));
 			if (shn==NULL) shn = itoa(symbols[i].st_shndx, buf, 10);
 			printf("%3d: %08x %4d %-7.7s %-6.6s %-3.3s %-24.24s\n", i,
@@ -1025,8 +1128,8 @@ int section_index(const char* name)
 				//" Смещение   Инфо    Тип             Знач.симв  Имя симв."
 				  " Offset     Info    Type            Val.symbol Name symb.\n",
 				shstrtab+shdr[idx].sh_name, 
-				shdr[idx].sh_offset, shdr[idx].sh_size/sizeof(Elf32_Rel_t));
-			Elf32_Rel_t * rel = elf_section_load(fp, shdr[idx].sh_offset, shdr[idx].sh_size);
+				shdr[idx].sh_offset, shdr[idx].sh_size/sizeof(Elf32_Rel));
+			Elf32_Rel * rel = elf_section_load(fp, shdr[idx].sh_offset, shdr[idx].sh_size);
 
 			uint8_t* segment = NULL;
 			uint32_t segment_addr = 0;
@@ -1038,11 +1141,11 @@ int section_index(const char* name)
 				segment_addr = shdr[idx-1].sh_addr;
 			}
 			int i;
-			for (i=0; i< shdr[idx].sh_size/sizeof(Elf32_Rel_t); i++){
+			for (i=0; i< shdr[idx].sh_size/sizeof(Elf32_Rel); i++){
 				int n = ELF32_R_SYM(rel[i].r_info);// идентификатор символа
 				printf(" %08x %08x %-18.18s %08x %-6.6s %2d: %-24.24s\n", 
 					rel[i].r_offset, rel[i].r_info, 
-					get_name(rel[i].r_info & 0xFF, NAMES(rel_type_names)),
+					get_name(rel[i].r_info & 0xFF, NAMES(rel_type_names)),//rel[i].r_info & 0xFF,
 					symbols[n].st_value,
 					get_name(ELF32_ST_TYPE(symbols[n].st_info), NAMES(stt_names)),
 					symbols[n].st_shndx,

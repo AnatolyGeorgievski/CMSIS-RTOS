@@ -2,6 +2,7 @@
 #include "svc.h"
 #include "ident.h"
 #include "pio.h"
+//#include "atomic.h"
 #include <time.h>
 #include <cmsis_os.h>
 #include <stdio.h>
@@ -13,8 +14,18 @@ extern  void WEAK osThreadInit();
 
 static int system_running =0; 
 static struct timespec system_uptime= {0};
-static struct timespec UTC= {0};
-static uint32_t system_ticks =0;
+static struct timespec UTC= {0};// смещение относительно системного времени
+
+/*  функция clock() определена в С11 <time.h> с параметром 
+см макрос CLOCKS_PER_SEC
+*/
+#ifndef CLOCKS_PER_SEC
+#define CLOCKS_PER_SEC 1000000// (BOARD_MCK*1000000)
+typedef uint32_t clock_t;
+#endif
+static clock_t system_ticks =0; /*!< системно-зависимый тип данных на 64 битной платформе может быть uint64_t 
+	это надо учитывать при вызове и использовании clock()
+*/
 
 void SysTick_Handler(void) PRIVILEGED_FUNCTION;
 
@@ -35,14 +46,15 @@ osStatus osKernelInitialize (void)
 	TRACE_Init();	// система сбора сообщений
 	// инициализация системного таймера, используется для измерения времени при инициализации оборудования
     r3_mem_init();	// распределение динамической памяти
-//    r3_slice_init();// выделение памяти слайсами
+//    r3_slice_init();// выделение памяти слайсами -- инициализация не требуется
     r3_sys_ident();		// идентификация системы, одна и та же прошивка должна уметь адаптироваться под разный размер памяти или тип процессора
     r3_reset_ident();	// идентификация типа загрузки: по питанию, програмная перезагрузка или сбой
 //	events_init();	// инициализация потока событий
     FLASH_LoadConfig();	// загрузить конфигурацию устройства
                 // регистрация прерываний от ног, внешние события
     //r3_sys_init();	// инициализация системного таймера
-	// переход из превилегированного режима в непревилегированный
+	// переход из превилегированного режима в непревилегированный -- выполняется при начальной загрузке
+	
 	return osOK;
 }
 osStatus osKernelStart (void)
@@ -64,11 +76,17 @@ int32_t osKernelRunning(void)
 #if (defined (osFeature_SysTick)  &&  (osFeature_SysTick != 0))     // System Timer available
 
  
- /*! \brief переключение контекстов задач
+static inline 
+uint64_t t64_bcd(uint64_t t64){
+    if ((uint32_t)t64 > 999999999UL)
+        t64+=(uint32_t)~999999999UL;
+    return t64;
+}
+
+ /*! \brief переключение контекстов задач по системному таймеру
 
 	\see osThreadYield
  */
-
 //__attribute__((isr))
 void  SysTick_Handler(void)
 {
@@ -77,27 +95,20 @@ void  SysTick_Handler(void)
 	system_ticks    += BOARD_RTC_PERIOD;
 	// таймерные процессы
 	osTimerWork(system_ticks);
+	// обновить системное время clock_settime(
     system_uptime.tv_nsec += BOARD_RTC_PERIOD*1000;// измеряется в микросекундах
-    if (system_uptime.tv_nsec >= 1000000000)
-    {
+    if (system_uptime.tv_nsec >= 1000000000) {
         system_uptime.tv_nsec -= 1000000000;
 		system_uptime.tv_sec++;
 	}
 	system_microsec    += BOARD_RTC_PERIOD;
 	if (system_microsec>=1000) {
-		system_microsec -=1000;
+		system_microsec-=1000;
 		if (osThreadGetPriority(osThreadGetId()) < osPriorityRealtime) {
 			 __YIELD();// запросить переключение задач по таймеру
 		}
     }
 }
-/*  функция clock() определена в С11 <time.h> с параметром 
-см макрос CLOCKS_PER_SEC
-*/
-#ifndef CLOCKS_PER_SEC
-#define CLOCKS_PER_SEC 1000000// (BOARD_MCK*1000000)
-typedef uint32_t clock_t;
-#endif
 //static inline
 clock_t clock(void)
 {
@@ -111,10 +122,17 @@ clock_t clock(void)
 int clock_gettime(clockid_t clock_id, struct timespec *ts)
 {
 	volatile struct timespec *uptime = &system_uptime;
-	register struct timespec t;
 	do {
 		*ts = *uptime;// атомарно?
 	} while (ts->tv_sec != uptime->tv_sec);
+	if (clock_id==TIME_UTC) {
+		ts->tv_sec  += UTC.tv_sec;
+		ts->tv_nsec += UTC.tv_nsec;
+		if (ts->tv_nsec >= 1000000000) {
+			ts->tv_nsec -= 1000000000;
+			ts->tv_sec ++;
+		}
+	}
 	return 0;
 /*
 	ptr = (&system_uptime.tv_nsec);
@@ -129,8 +147,7 @@ int clock_gettime(clockid_t clock_id, struct timespec *ts)
  */
 int clock_getres(clockid_t clock_id, struct timespec *res)
 {
-	res->tv_sec =0;
-	res->tv_nsec =1000*BOARD_RTC_PERIOD;
+	*res =(struct timespec){.tv_nsec =1000*BOARD_RTC_PERIOD};
 	return 0;
 }
 /*
@@ -167,32 +184,53 @@ int clock_settime(clockid_t clock_id, const struct timespec *tp)
 }
 time_t time(time_t* ref)
 {
-	if (ref!=NULL) {
-		*ref = system_uptime.tv_sec;
-	}
-	return system_uptime.tv_sec;
+	uint32_t t = (system_uptime.tv_sec);// +UTC?
+	if (ref!=NULL)
+		*ref = t;
+	return t;
 //	return SysTick->LOAD - SysTick->VAL;
 }
-#if 0 //Это часть стандарта с11
+#if 0 //Это часть стандарта с11 в POSIX не поддержана
+// Сравнение
+int timespec_cmp(&timenow,ts2) {
+	
+}
 int timespec_get(struct timespec *ts, int base) 
 {
-	*ts = system_uptime;// атомарно?
-	if (base == TIME_UTC) {
-		ts->tv_sec  += UTC.tv_sec;
-		ts->tv_nsec += UTC.tv_nsec;
-		if (ts->tv_nsec >= 1000000000) {// не реализуется, потому что таймерный процесс не прерывается.
-			ts->tv_nsec -= 1000000000;
-			ts->tv_sec ++;
+	volatile struct timespec *uptime = &system_uptime;
+	do {
+		*ts = *uptime;// атомарно?
+	} while (ts->tv_sec != uptime->tv_sec);
+	if (base == TIME_MONOTONIC){
+		
+	} else {
+		struct timespec *d;
+		switch (base) {
+		case TIME_UTC: d = UTC; break;
+		default: d = NULL; break;
+		}
+		if (d!=NULL) {
+			ts->tv_sec  += d->tv_sec;
+			ts->tv_nsec += d->tv_nsec;
+			if (ts->tv_nsec >= 1000000000) {
+				ts->tv_nsec -= 1000000000;
+				ts->tv_sec ++;
+			}
 		}
 	}
 	return base;
 }
+int timespec_getres	(struct timespec *ts ,int base){
+	*res =(struct timespec){.tv_nsec =1000*BOARD_RTC_PERIOD};
+	return base;
+}
 #endif
+#if 0 // убрать
 uint32_t osKernelSysTick (void)
 {
 	return system_ticks;
 }
-
+#endif
 #endif
 
 /*! \todo привести устройство в нормальное состояние, 

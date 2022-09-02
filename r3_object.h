@@ -6,16 +6,16 @@
 #include "r3_asn.h"
 
 #ifndef BACnet_H
-/*! Классификация объектов */
+/*! РљР»Р°СЃСЃРёС„РёРєР°С†РёСЏ РѕР±СЉРµРєС‚РѕРІ */
 enum _BACnetObjectType {
 ANALOG_INPUT 	= 0,
-ANALOG_OUTPUT 	= 1,// commandable, сигнал обновления (флаг)
+ANALOG_OUTPUT 	= 1,// commandable, СЃРёРіРЅР°Р» РѕР±РЅРѕРІР»РµРЅРёСЏ (С„Р»Р°Рі)
 ANALOG_VALUE 	= 2,
 BINARY_INPUT 	= 3,
 BINARY_OUTPUT 	= 4,
 BINARY_VALUE 	= 5,
 CALENDAR 		= 6,
-COMMAND 		= 7,// представляет последовательность команд Sequence_t
+COMMAND 		= 7,// РїСЂРµРґСЃС‚Р°РІР»СЏРµС‚ РїРѕСЃР»РµРґРѕРІР°С‚РµР»СЊРЅРѕСЃС‚СЊ РєРѕРјР°РЅРґ Sequence_t
 _DEVICE 		= 8,
 EVENT_ENROLLMENT= 9,
 _FILE 			= 10,
@@ -25,15 +25,15 @@ MULTI_STATE_INPUT 	= 13,
 MULTI_STATE_OUTPUT 	= 14,
 _NOTIFICATION_CLASS = 15,
 PROGRAM 			= 16,
-SCHEDULE 			= 17,// значение переменной по расписнию и список свойств-объектов, которые перезаписываются
-AVERAGING 			= 18,// любой цифровой фильтр с одним входом и одним выходом попадает в эту категорию.
-MULTI_STATE_VALUE 	= 19,// не вижу разницы между MULTI_STATE_INPUT
+SCHEDULE 			= 17,// Р·РЅР°С‡РµРЅРёРµ РїРµСЂРµРјРµРЅРЅРѕР№ РїРѕ СЂР°СЃРїРёСЃРЅРёСЋ Рё СЃРїРёСЃРѕРє СЃРІРѕР№СЃС‚РІ-РѕР±СЉРµРєС‚РѕРІ, РєРѕС‚РѕСЂС‹Рµ РїРµСЂРµР·Р°РїРёСЃС‹РІР°СЋС‚СЃСЏ
+AVERAGING 			= 18,// Р»СЋР±РѕР№ С†РёС„СЂРѕРІРѕР№ С„РёР»СЊС‚СЂ СЃ РѕРґРЅРёРј РІС…РѕРґРѕРј Рё РѕРґРЅРёРј РІС‹С…РѕРґРѕРј РїРѕРїР°РґР°РµС‚ РІ СЌС‚Сѓ РєР°С‚РµРіРѕСЂРёСЋ.
+MULTI_STATE_VALUE 	= 19,// РЅРµ РІРёР¶Сѓ СЂР°Р·РЅРёС†С‹ РјРµР¶РґСѓ MULTI_STATE_INPUT
 TREND_LOG 			= 20,
 LIFE_SAFETY_POINT 	= 21,
 LIFE_SAFETY_ZONE 	= 22,
-ACCUMULATOR 		= 23,// считает импульсы умножает на дробь N/M накопление ошибки округления
-PULSE_CONVERTER 	= 24,// преобразует целое в вещественное
-// набор по 2004 году
+ACCUMULATOR 		= 23,// СЃС‡РёС‚Р°РµС‚ РёРјРїСѓР»СЊСЃС‹ СѓРјРЅРѕР¶Р°РµС‚ РЅР° РґСЂРѕР±СЊ N/M РЅР°РєРѕРїР»РµРЅРёРµ РѕС€РёР±РєРё РѕРєСЂСѓРіР»РµРЅРёСЏ
+PULSE_CONVERTER 	= 24,// РїСЂРµРѕР±СЂР°Р·СѓРµС‚ С†РµР»РѕРµ РІ РІРµС‰РµСЃС‚РІРµРЅРЅРѕРµ
+// РЅР°Р±РѕСЂ РїРѕ 2004 РіРѕРґСѓ
 EVENT_LOG 			= 25,
 GLOBAL_GROUP 		= 26,
 TREND_LOG_MULTIPLE 	= 27,
@@ -79,9 +79,9 @@ struct _BlockMedia {
 //    int     (*detach)(void* fp);
 
     uint32_t    num_blocks;
-    int         page_size_log2;     //!< размер страницы в блоках  (sec_per_clus_log2), структурная единица
-    int         segment_size_log2;  //!< размер сегмента в блоках, единица стирания данных
-    const char* name;//!< имя носителя
+    int         page_size_log2;     //!< СЂР°Р·РјРµСЂ СЃС‚СЂР°РЅРёС†С‹ РІ Р±Р»РѕРєР°С…  (sec_per_clus_log2), СЃС‚СЂСѓРєС‚СѓСЂРЅР°СЏ РµРґРёРЅРёС†Р°
+    int         segment_size_log2;  //!< СЂР°Р·РјРµСЂ СЃРµРіРјРµРЅС‚Р° РІ Р±Р»РѕРєР°С…, РµРґРёРЅРёС†Р° СЃС‚РёСЂР°РЅРёСЏ РґР°РЅРЅС‹С…
+    const char* name;//!< РёРјСЏ РЅРѕСЃРёС‚РµР»СЏ
 };
 
 enum _NodeType {
@@ -177,7 +177,7 @@ enum _ResourceError {
     OUT_OF_MEMORY
 };
 #endif
-#define OBJECT_ID_MASK  0x3FFFFF // 22 бита
+#define OBJECT_ID_MASK  0x3FFFFF // 22 Р±РёС‚Р°
 #define UNDEFINED       0x3FFFFF
 
 #define OID(type, id) ((type<<22)|(id & OBJECT_ID_MASK))
@@ -211,8 +211,8 @@ struct _BACnetAddress {
     uint8_t mac_len;        //!< A string of length 0 indicates a broadcast
     uint8_t status; // enum {available (0),busy (1),disconnected (2)}
     union {
-        uint8_t*  p;// в форме строки
-        uintptr_t u;// максимальное целое
+        uint8_t*  p;// РІ С„РѕСЂРјРµ СЃС‚СЂРѕРєРё
+        uintptr_t u;// РјР°РєСЃРёРјР°Р»СЊРЅРѕРµ С†РµР»РѕРµ
         uint8_t b[sizeof(uintptr_t)];
     } mac_address;
 
@@ -220,10 +220,10 @@ struct _BACnetAddress {
 typedef struct _BACnetAddressBinding    BACnetAddressBinding_t;
 typedef struct _BACnetAddressBindingEx  BACnetAddressBindingEx_t;
 
-/* базвый класс для объектов */
+/* Р±Р°Р·РІС‹Р№ РєР»Р°СЃСЃ РґР»СЏ РѕР±СЉРµРєС‚РѕРІ */
 struct _Object {
-    ObjectIdentifier_t object_identifier; //!< 22 бита, порядковый номер, 10 старших бит- тип устройства
-    char* object_name;  //!< Уникальное имя объекта, имя устройства должно быть уникально на сети
+    ObjectIdentifier_t object_identifier; //!< 22 Р±РёС‚Р°, РїРѕСЂСЏРґРєРѕРІС‹Р№ РЅРѕРјРµСЂ, 10 СЃС‚Р°СЂС€РёС… Р±РёС‚- С‚РёРї СѓСЃС‚СЂРѕР№СЃС‚РІР°
+    char* object_name;  //!< РЈРЅРёРєР°Р»СЊРЅРѕРµ РёРјСЏ РѕР±СЉРµРєС‚Р°, РёРјСЏ СѓСЃС‚СЂРѕР№СЃС‚РІР° РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ СѓРЅРёРєР°Р»СЊРЅРѕ РЅР° СЃРµС‚Рё
     ARRAY_OF(const PropertySpec_t) property_list;
     // Description
     // Profile_Name
@@ -280,7 +280,7 @@ struct _AnalogValueObject {
     REAL present_value;
     uint16_t    units;
     volatile uint8_t status_flags; // BIT_STRING(BACnetStatusFlags)
-// ограничения в интерфейсе
+// РѕРіСЂР°РЅРёС‡РµРЅРёСЏ РІ РёРЅС‚РµСЂС„РµР№СЃРµ
     REAL relinquish_default;
 	REAL min_pres_value, max_pres_value, resolution;
 
@@ -344,12 +344,12 @@ struct _DeviceObject{// 12.11 Device Object Type
     } system_status;
 	const char* vendor_name;
 	const char* model_name;
-	const char* serial_number;      //!< Серийный номер устройства или MAC адрес сетевого интрефейса eth0
-	const char* firmware_revision;  //!< в это поле попадает версия сборки при загрузке, поменять нельзя, только после перезагрузки
+	const char* serial_number;      //!< РЎРµСЂРёР№РЅС‹Р№ РЅРѕРјРµСЂ СѓСЃС‚СЂРѕР№СЃС‚РІР° РёР»Рё MAC Р°РґСЂРµСЃ СЃРµС‚РµРІРѕРіРѕ РёРЅС‚СЂРµС„РµР№СЃР° eth0
+	const char* firmware_revision;  //!< РІ СЌС‚Рѕ РїРѕР»Рµ РїРѕРїР°РґР°РµС‚ РІРµСЂСЃРёСЏ СЃР±РѕСЂРєРё РїСЂРё Р·Р°РіСЂСѓР·РєРµ, РїРѕРјРµРЅСЏС‚СЊ РЅРµР»СЊР·СЏ, С‚РѕР»СЊРєРѕ РїРѕСЃР»Рµ РїРµСЂРµР·Р°РіСЂСѓР·РєРё
 	const char* application_software_version;
 
-	char* location;                 //!< ОПЦИЯ размещение устройства
-	char* description;              //!< ОПЦИЯ описание устройства
+	char* location;                 //!< РћРџР¦РРЇ СЂР°Р·РјРµС‰РµРЅРёРµ СѓСЃС‚СЂРѕР№СЃС‚РІР°
+	char* description;              //!< РћРџР¦РРЇ РѕРїРёСЃР°РЅРёРµ СѓСЃС‚СЂРѕР№СЃС‚РІР°
 
     uint16_t vendor_identifier;
     uint16_t max_apdu_length_accepted;
@@ -367,11 +367,11 @@ struct _DeviceObject{// 12.11 Device Object Type
 	uint32_t database_revision;
     Time_t 	local_time;
     Date_t 	local_date;
-    DateTime_t last_restore_time;//!< Значение должно сохраняться во флеш
+    DateTime_t last_restore_time;//!< Р—РЅР°С‡РµРЅРёРµ РґРѕР»Р¶РЅРѕ СЃРѕС…СЂР°РЅСЏС‚СЊСЃСЏ РІРѕ С„Р»РµС€
 
 	uint8_t last_restart_reason;
     ARRAY_OF(ObjectIdentifier_t) object_list;
-    ARRAY_OF(ObjectIdentifier_t) structured_object_list;//!< Содержит представление системы в форме дерева -- файловая система
+    ARRAY_OF(ObjectIdentifier_t) structured_object_list;//!< РЎРѕРґРµСЂР¶РёС‚ РїСЂРµРґСЃС‚Р°РІР»РµРЅРёРµ СЃРёСЃС‚РµРјС‹ РІ С„РѕСЂРјРµ РґРµСЂРµРІР° -- С„Р°Р№Р»РѕРІР°СЏ СЃРёСЃС‚РµРјР°
     ARRAY_OF(ObjectIdentifier_t) configuration_files;
     LIST_OF(BACnetAddressBinding_t) device_address_binding;
     LIST_OF(BACnetCOVSubscription_t) active_cov_subscriptions;
@@ -390,8 +390,8 @@ struct _DeviceObject{// 12.11 Device Object Type
         RESTORE_FAILURE         =(6)
     } backup_and_restore_state;
 //    struct _TimeStamp last_restore_time;
-// приватные
-//    tree_t* objects;// списко объектов принадлежащих устройству в системе
+// РїСЂРёРІР°С‚РЅС‹Рµ
+//    tree_t* objects;// СЃРїРёСЃРєРѕ РѕР±СЉРµРєС‚РѕРІ РїСЂРёРЅР°РґР»РµР¶Р°С‰РёС… СѓСЃС‚СЂРѕР№СЃС‚РІСѓ РІ СЃРёСЃС‚РµРјРµ
     NetworkPort_t* network_ports;
 };
 struct _FileObject{// 12.13 File Object Type
@@ -399,7 +399,7 @@ struct _FileObject{// 12.13 File Object Type
     uint32_t file_size;
     char *file_type;// bin, cfg...
     DateTime_t modification_date;
-    bool archive;// выставляем в TRUE когда надо записать файл во флеш
+    bool archive;// РІС‹СЃС‚Р°РІР»СЏРµРј РІ TRUE РєРѕРіРґР° РЅР°РґРѕ Р·Р°РїРёСЃР°С‚СЊ С„Р°Р№Р» РІРѕ С„Р»РµС€
     bool read_only;
     //enum BACnetFileAccessMethod
     void *fp;
@@ -411,7 +411,7 @@ struct _GroupObject{// 12.14 Group Object Type
     LIST_OF(struct _ReadAccessSpecification) list_of_group_members;
     LIST_OF(struct _ReadAccessResult) present_value;
 };
-struct _LoopObject{// 12.17 Loop Object Type -- внешнее представление регулятора
+struct _LoopObject{// 12.17 Loop Object Type -- РІРЅРµС€РЅРµРµ РїСЂРµРґСЃС‚Р°РІР»РµРЅРёРµ СЂРµРіСѓР»СЏС‚РѕСЂР°
     struct _Object instance;
     REAL present_value;
 	uint32_t update_interval; //  interval in milliseconds at which the loop algorithm updates the output
@@ -424,7 +424,7 @@ struct _NotificationClassObject {// 12.21 Notification Class Object Type
 	ARRAY_OF(uint16_t) property_list;
 };
 struct _TimeValue {
-	Time_t time;// время кодируется секундами часы(5):минуты(7):сек(7):сотые(7), старшие биты можно использовать на фалги
+	Time_t time;// РІСЂРµРјСЏ РєРѕРґРёСЂСѓРµС‚СЃСЏ СЃРµРєСѓРЅРґР°РјРё С‡Р°СЃС‹(5):РјРёРЅСѓС‚С‹(7):СЃРµРє(7):СЃРѕС‚С‹Рµ(7), СЃС‚Р°СЂС€РёРµ Р±РёС‚С‹ РјРѕР¶РЅРѕ РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ РЅР° С„Р°Р»РіРё
 	struct _AnyValue value;// ON/OFF
 };
 // 12.22 Program Object Type
@@ -448,7 +448,7 @@ struct _TrendLogObject{// 12.25 Trend Log Object Type
 };
 // 12.26 Access Door Object Type
 struct _AccessRule {
-	// флаги: enable, time-range-specifier(specified=0|always=1), location-specifier (0|all=1)
+	// С„Р»Р°РіРё: enable, time-range-specifier(specified=0|always=1), location-specifier (0|all=1)
 
 /* BACnetDeviceObjectPropertyReference, references a
 property that can be evaluated to TRUE or FALSE, which defines whether the
@@ -463,8 +463,8 @@ The Location reference shall be considered unspecified if it contains 4194303 */
 
 struct _EventLogRecord {
 	struct _DateTime timestamp;
-	ObjectIdentifier_t event_object_identifier; // источник
-	uint8_t * notification;// запись на диске?? в формате  ConfirmedEventNotification-Request
+	ObjectIdentifier_t event_object_identifier; // РёСЃС‚РѕС‡РЅРёРє
+	uint8_t * notification;// Р·Р°РїРёСЃСЊ РЅР° РґРёСЃРєРµ?? РІ С„РѕСЂРјР°С‚Рµ  ConfirmedEventNotification-Request
 	//CHOICE_OF(union _event_log_datum) log_datum;
 };
 struct _EventLogObject{// 12.27 Event Log Object Type
@@ -493,8 +493,8 @@ struct _NetworkPortObject       {// 12.56 Network Port Object Type
     char* network_interface_name;
 
     uint8_t /* enum _BACnetNetworkType */ network_type;
-    // параметры применимы к порту MS/TP
-    uint8_t max_master;// см Nmax_master
+    // РїР°СЂР°РјРµС‚СЂС‹ РїСЂРёРјРµРЅРёРјС‹ Рє РїРѕСЂС‚Сѓ MS/TP
+    uint8_t max_master;// СЃРј Nmax_master
     uint8_t max_info_frames;// \sa Mmax_info_frames
 /* \see datalink */
     uint8_t ip_address[4];
@@ -503,13 +503,13 @@ struct _NetworkPortObject       {// 12.56 Network Port Object Type
     uint16_t BACnet_IP_UDP_Port;
 
     bool slave_proxy_enable;
-    LIST_OF(BACnetAddressBindingEx_t) manual_slave_address_binding;// расширенная привязка
+    LIST_OF(BACnetAddressBindingEx_t) manual_slave_address_binding;// СЂР°СЃС€РёСЂРµРЅРЅР°СЏ РїСЂРёРІСЏР·РєР°
     bool auto_slave_discovery;
     LIST_OF(BACnetAddressBinding_t) slave_address_binding;
 #if 1 //defined(B_RTR) // BACnet Router (B-RTR) \see ANNEX A
     LIST_OF(BACnetRouterEntry_t)    routing_table;// Routing_Table BACnetLIST of BACnetRouterEntry
 #endif // defined
-// приватные
+// РїСЂРёРІР°С‚РЅС‹Рµ
     DataLink_t* datalink;
     struct _NetworkPortObject * next;
 };
@@ -543,13 +543,13 @@ struct _DateValueObject{// 12.45 Date Value Object Type
 
 struct _ObjectPropertyReference {
     uint32_t object_identifier;
-    uint32_t/* enum _BACnetPropertyIdentifier */ property_identifier;// используются 22 бита
-    uint16_t property_array_index;// можно оставить только 10 бит, тогда уложится в 32 бита
-    uint16_t context_id;// индекс в таблице свойств объекта
-    const PropertySpec_t * pspec;// таблица свойств объекта
+    uint32_t/* enum _BACnetPropertyIdentifier */ property_identifier;// РёСЃРїРѕР»СЊР·СѓСЋС‚СЃСЏ 22 Р±РёС‚Р°
+    uint16_t property_array_index;// РјРѕР¶РЅРѕ РѕСЃС‚Р°РІРёС‚СЊ С‚РѕР»СЊРєРѕ 10 Р±РёС‚, С‚РѕРіРґР° СѓР»РѕР¶РёС‚СЃСЏ РІ 32 Р±РёС‚Р°
+    uint16_t context_id;// РёРЅРґРµРєСЃ РІ С‚Р°Р±Р»РёС†Рµ СЃРІРѕР№СЃС‚РІ РѕР±СЉРµРєС‚Р°
+    const PropertySpec_t * pspec;// С‚Р°Р±Р»РёС†Р° СЃРІРѕР№СЃС‚РІ РѕР±СЉРµРєС‚Р°
 
-//	Object_t* object;// Ссылка на объект
-//    void* data;// вычисленное значение Можно его отсюда исключить
+//	Object_t* object;// РЎСЃС‹Р»РєР° РЅР° РѕР±СЉРµРєС‚
+//    void* data;// РІС‹С‡РёСЃР»РµРЅРЅРѕРµ Р·РЅР°С‡РµРЅРёРµ РњРѕР¶РЅРѕ РµРіРѕ РѕС‚СЃСЋРґР° РёСЃРєР»СЋС‡РёС‚СЊ
 //	struct _Commandable *commandable;
 };
 
@@ -572,7 +572,7 @@ static inline uint32_t bcd2bin_time(uint32_t v)
 	return (v&0x0F0F0F00) - ((v&0xF0F0F000)>>4)*6;
 }
 
-/*! \brief Преобразовать локальное представление даты в формат BACnet
+/*! \brief РџСЂРµРѕР±СЂР°Р·РѕРІР°С‚СЊ Р»РѕРєР°Р»СЊРЅРѕРµ РїСЂРµРґСЃС‚Р°РІР»РµРЅРёРµ РґР°С‚С‹ РІ С„РѕСЂРјР°С‚ BACnet
 
 	Date values shall be encoded in the contents octets as four binary integers. The first contents octet shall represent the year minus
 1900; the second octet shall represent the month, with January = 1; the third octet shall represent the day of the month; and the
@@ -584,7 +584,7 @@ X'FF', the corresponding date may be interpreted as "any" or "don't care."
 static inline Date_t date_encode_mask(const struct tm* tv, Date_t mask)
 {
 	union {
-		struct {// представление времени в формате BACnet
+		struct {// РїСЂРµРґСЃС‚Р°РІР»РµРЅРёРµ РІСЂРµРјРµРЅРё РІ С„РѕСЂРјР°С‚Рµ BACnet
 			uint32_t wday:8;
 			uint32_t mday:8;
 			uint32_t mon :8;
@@ -600,7 +600,7 @@ static inline Date_t date_encode_mask(const struct tm* tv, Date_t mask)
 	t.year+=100;
 	return t.u32 | mask;
 }
-/*! \brief Преобразовать локальное представление времени в формат BACnet
+/*! \brief РџСЂРµРѕР±СЂР°Р·РѕРІР°С‚СЊ Р»РѕРєР°Р»СЊРЅРѕРµ РїСЂРµРґСЃС‚Р°РІР»РµРЅРёРµ РІСЂРµРјРµРЅРё РІ С„РѕСЂРјР°С‚ BACnet
 
 	Time values shall be encoded in the contents octets as four binary integers. The first contents octet shall represent the hour, in
 the 24-hour system (1 P.M. = D'13'); the second octet shall represent the minute of the hour; the third octet shall represent the
@@ -611,7 +611,7 @@ wildcard when matching times. If all four octets = X'FF', the corresponding time
 static inline Time_t time_encode_mask(const struct tm* tv, Time_t mask)
 {
 	union {
-		struct {// представление времени в формате BACnet
+		struct {// РїСЂРµРґСЃС‚Р°РІР»РµРЅРёРµ РІСЂРµРјРµРЅРё РІ С„РѕСЂРјР°С‚Рµ BACnet
 			uint32_t hundredths:8;
 			uint32_t sec:8;
 			uint32_t min:8;

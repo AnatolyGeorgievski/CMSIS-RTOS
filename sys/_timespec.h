@@ -7,8 +7,8 @@
 #ifndef _TIMESPEC_DEFINED
 #define _TIMESPEC_DEFINED
 struct timespec {
-	time_t	tv_sec;		/* seconds */
-	long	tv_nsec;	/* and nanoseconds */
+	time_t 	tv_sec; 	//!< whole seconds -- ≥ 0
+	long 	tv_nsec; 	//!< nanoseconds -- [0, 999999999]	
 };
 #endif // _TIMESPEC_DEFINED
 #endif // SYS_TIMESPEC_H

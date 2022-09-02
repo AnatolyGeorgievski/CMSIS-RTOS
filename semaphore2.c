@@ -2,6 +2,10 @@
 #include "semaphore.h"
 
 #include "r3_slice.h"
+#include <sys/thread.h>
+#include <svc.h>
+typedef struct _thread osThread_t;
+extern volatile osThread_t* current_thread;
 
 /*! \ingroup _system
     \defgroup _semaphore Semaphore Management
@@ -50,10 +54,10 @@ osStatus_t osSemaphoreAcquire (osSemaphoreId_t semaphore_id, uint32_t millisec)
     int count = semaphore_enter(&sem->count);
     if (count) return osOK;
 
-    osEvent_t event = {.status = osEventSemaphore, .value={.p = (void*)&sem->count}};
-    osEventWait(&event, millisec);
-    if (event.status == osEventSemaphore) return osOK;
-    if (event.status == osEventTimeout) return osErrorTimeout;
+    svc3(SVC_EVENT_WAIT, osEventSemaphore, (uintptr_t)&sem->count, millisec*1000);
+	int status = current_thread->process.event.status;
+    if (status == osEventSemaphore) return osOK;
+    if (status == osEventTimeout) return osErrorTimeout;
     return osErrorISR;
 }
 //! \}

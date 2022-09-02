@@ -1,8 +1,14 @@
 /*! \brief Message Queue */
 #include <cmsis_os2.h>
-#include "semaphore.h"
 #include <stdlib.h>
 #include <string.h>
+#include <semaphore.h>
+#include <sys/thread.h>
+#include <svc.h>
+
+typedef struct _thread osThread_t;
+extern volatile osThread_t* current_thread;
+typedef struct _Event osEvent_t;
 typedef struct _osMessageQueue osMessageQueue_t;
 typedef struct _PriorityList PriorityList_t;
 struct _PriorityList {
@@ -16,6 +22,7 @@ struct _osMessageQueue {
 	uint32_t msg_size;
     PriorityList_t *tail;
     PriorityList_t *head;
+	const char * name;
 //    uint16_t block_size;
 };
 /*
@@ -32,13 +39,31 @@ osMessageQueueId_t osMessageQueueNew 	( 	uint32_t  	msg_count,
     osMessageQueue_t * queue = malloc(sizeof(osMessageQueue_t));
 	queue->pool_id = osMemoryPoolNew(msg_count, msg_size + sizeof(PriorityList_t),
                                     (const osMemoryPoolAttr_t*)attr);
-	semaphore_init(&queue->count, msg_count);
+	semaphore_init(&queue->count, 0);
 	queue->head=NULL;
 	queue->tail=NULL;
 	queue->msg_size = msg_size;
 	return queue;
 }
-osStatus_t osMessageQueueGet 	( 	osMessageQueueId_t  	mq_id,
+uint32_t	osMessageQueueGetCount 	( 	osMessageQueueId_t  	mq_id	) 	
+{
+	osMessageQueue_t* queue = mq_id;
+	return queue->count;
+}
+const char * osMessageQueueGetName 	( 	osMessageQueueId_t  	mq_id	) 	
+{
+	osMessageQueue_t* queue = mq_id;
+	return queue->name;
+}
+/*! 
+	\return number of available slots for messages.
+ */
+uint32_t  	osMessageQueueGetSpace 	( 	osMessageQueueId_t  	mq_id	) 
+{
+	osMessageQueue_t* queue = mq_id;
+	return osMemoryPoolGetSpace(queue->pool_id);
+}
+osStatus_t	osMessageQueueGet 	( 	osMessageQueueId_t  	mq_id,
 		void *  	msg_ptr,
 		uint8_t *  	msg_prio,
 		uint32_t  	timeout
@@ -47,14 +72,15 @@ osStatus_t osMessageQueueGet 	( 	osMessageQueueId_t  	mq_id,
     osMessageQueue_t* queue = mq_id;
 	int count = semaphore_enter(&queue->count);// ожидаем сообщение
 	if(count==0) {
-		osEvent_t event = {.status = osEventSemaphore, .value={.p = (void*)&queue->count}};
-		osEventWait(&event, timeout);
-		if (event.status == osEventTimeout){
+//		osEvent_t event = {.status = osEventSemaphore, .value={.p = (void*)&queue->count}};
+		svc3(SVC_EVENT_WAIT, osEventSemaphore, (void*)&queue->count, timeout*1000);
+		int status = current_thread->process.event.status;
+		if (status & osEventTimeout){
 			return osErrorTimeout;
 		}
 	}
 	{
-		PriorityList_t* msg = (PriorityList_t*)atomic_pointer_exchange(&queue->head, NULL);// снимаем шляпу
+		PriorityList_t* msg = (PriorityList_t*)atomic_pointer_exchange(&queue->tail, NULL);// снимаем шляпу
 		// если используются приоритеты, следует использовать сортировку
 		while(msg){
 			PriorityList_t *msg_next = msg->next;
@@ -76,7 +102,7 @@ osStatus_t osMessageQueueGet 	( 	osMessageQueueId_t  	mq_id,
 	}
 	return osOK;
 }
-osStatus_t osMessageQueuePut 	( 	osMessageQueueId_t  	mq_id,
+osStatus_t 	osMessageQueuePut 	( 	osMessageQueueId_t  	mq_id,
 		const void *  	msg_ptr,
 		uint8_t  	msg_prio,
 		uint32_t  	timeout

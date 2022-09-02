@@ -23,7 +23,7 @@
 #include <stdio.h>
 #include "atomic.h"
 #include "semaphore.h"
-#include "thread.h"
+#include <sys/thread.h>
 //#include "r3stdlib.h"
 //#include "r3v2protocol.h"
 //#include "r3rtos.h"
@@ -39,7 +39,7 @@ static int main_weak()
 #pragma weak osKernelInitialize = main_weak
 #pragma weak osKernelRunning = main_weak
 #pragma weak osKernelStart = main_weak
-#pragma weak osThreadYield = main_weak
+//#pragma weak osThreadYield = main_weak
 #pragma weak __libc_init_array = main_weak
 
 //static void main_none(){}
@@ -142,7 +142,7 @@ extern void osServiceWorkFlow(void);
 #endif
         if (osFeature_MainThread) {
 			osThreadYield();// отдыхаем до следующего прерывания
-			__WFE();// если тред только один, начинаются тормоза при обработке модулей.
+			//__WFE();// если тред только один, начинаются тормоза при обработке модулей.
 		}
 	}
 	while(1) ;

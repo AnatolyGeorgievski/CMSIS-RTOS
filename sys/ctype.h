@@ -70,10 +70,11 @@ cp1251_unicode[128] = {
 	 0x0448,0x0449,0x044A,0x044B,0x044C,0x044D,0x044E,0x044F
 	};
  */
-
+#ifndef _AEABI_PORTABLE
 static inline int isalpha(int c) {
 	return (0x40<c && c<=0x5A) || (0x60<c && c<=0x7A);
 }
+//#define isdigit(c) (((unsigned)(c) - '0') < 10)
 static inline int isdigit(int c){
 	return (0x30<=c && c<0x3a);
 }
@@ -99,6 +100,7 @@ static inline int isspace(int c){
 static inline int isupper(int c){
 	return (0x60<c && c<=0x7A);
 }
+//#define isxdigit(c) (((unsigned)(c) & ~0x20) – 0x41) < 6 || isdigit(c))
 static inline int isxdigit(int c) {
 	return isdigit(c) || ('A'<=c && c<='F') || ('a'<=c && c<='f');
 }
@@ -111,4 +113,49 @@ static inline int toupper(int c){
 	return c;
 }
 
+#else //_AEABI_PORTABILITY_LEVEL != 0
+/* Mandatory character attribute arrays indexed from 0 to 256 */
+extern unsigned char const __aeabi_ctype_table_C[257]; /* "C" locale */
+extern unsigned char const __aeabi_ctype_table_[257]; /* default locale */
+/* The default locale might be the C locale */
+/* Optional character attribute arrays indexed from 0 to 256. */
+/* These do not have to be provided by every execution environment */
+/* but, if provided, shall be provided with these names and meaning. */
+extern unsigned char const __aeabi_ctype_table_ISO8859_1[257];
+extern unsigned char const __aeabi_ctype_table_SJIS[257];
+extern unsigned char const __aeabi_ctype_table_BIG5[257];
+extern unsigned char const __aeabi_ctype_table_UTF8[257];
+
+#ifdef _AEABI_LC_CTYPE
+# define _AEABI_CTYPE_TABLE(_X) __aeabi_ctype_table_ ## _X
+# define _AEABI_CTYPE(_X) _AEABI_CTYPE_TABLE(_X)
+# define __aeabi_ctype_table _AEABI_CTYPE(_AEABI_LC_CTYPE)
+#else
+# define __aeabi_ctype_table __aeabi_ctype_table_
+#endif
+
+#define __A 1 /* alphabetic */ /* The names of these macros */
+#define __X 2 /* A-F, a-f and 0-9 */ /* are illustrative only and */
+#define __P 4 /* punctuation */ /* are not mandated by this */
+#define __B 8 /* printable blank */ /* standard. */
+#define __S 16 /* white space */
+#define __L 32 /* lower case letter */
+#define __U 64 /* upper case letter */
+#define __C 128 /* control chars */
+
+//#define isxxxxx(c) (expxxxxx(((__aeabi_ctype_table + 1)[c]))
+
+#define isspace(x) ((__aeabi_ctype_table+1)[x] & __S)
+#define isalpha(x) ((__aeabi_ctype_table+1)[x] & __A)
+#define isalnum(x) ((__aeabi_ctype_table+1)[x] << 30) // test for __A and __X
+#define isprint(x) ((__aeabi_ctype_table+1)[x] << 28) // test for __A, __X, __P and __B
+#define isupper(x) ((__aeabi_ctype_table+1)[x] & __U)
+#define islower(x) ((__aeabi_ctype_table+1)[x] & __L)
+#define isxdigit(x) ((__aeabi_ctype_table+1)[x] & __X)
+//#define isblank(x)  ((x) == '\t' || ((__aeabi_ctype_table+1)[x] & __B))
+#define isblank(x) (isblank)(x) /* C99 isblank() is not a simple macro */
+#define isgraph(x) ((__aeabi_ctype_table+1)[x] << 29) // test for __A, __X and __P
+#define iscntrl(x) ((__aeabi_ctype_table+1)[x] & __C)
+#define ispunct(x) ((__aeabi_ctype_table+1)[x] & __P)
+#endif
 #endif // CTYPE_H

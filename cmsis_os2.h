@@ -66,7 +66,7 @@
 extern "C"
 {
 #endif
- 
+/* 
 typedef struct  {
   enum {
 	  osEventComplete,
@@ -79,7 +79,7 @@ typedef struct  {
     void                       *p;     ///< message or mail as void pointer
     int32_t               signals;     ///< signal flags
   } value;                             ///< event value
-} osEvent_t;
+} osEvent_t; */
 //  ==== Enumerations, structures, defines ====
  
 /// Version information.
@@ -216,8 +216,8 @@ typedef enum {
   osStatusReserved          = 0x7FFFFFFF  ///< Prevents enum down-size compiler optimization.
 } osStatus_t;
 
-void osEventWait (osEvent_t *event, uint32_t millisec);
-int osEventTimedWait (osEvent_t *event, const struct timespec* restrict ts);
+//void osEventWait (osEvent_t *event, uint32_t millisec);
+//int osEventTimedWait (osEvent_t *event, const struct timespec* restrict ts);
  
 /// \details Thread ID identifies the thread.
 typedef void *osThreadId_t;

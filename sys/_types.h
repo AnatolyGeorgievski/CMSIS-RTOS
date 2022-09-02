@@ -1,12 +1,12 @@
 #ifndef SYS__TYPES_H
 #define SYS__TYPES_H
 
-#define __need_wint_t
-
 #include <stddef.h>
-#include "machine/_types.h"
 
-#define __need_wint_t/* Conversion state information.  */
+
+#include "machine/_types.h"
+typedef unsigned int wint_t;
+#define WEOF ((wint_t)-1)
 typedef struct
 {
   int __count;
@@ -17,9 +17,12 @@ typedef struct
   } __value;            /* Value so far.  */
 } _mbstate_t;
 
-typedef unsigned long useconds_t;
-typedef int32_t ssize_t;
+typedef unsigned long useconds_t; // системное определение для функции usleep
 typedef long _off_t;
-typedef long _fpos_t;              /* XXX must match off_t in <sys/types.h> */
-
+typedef _off_t off_t;		/* XXX must match off_t in <sys/types.h> */
+typedef long _fpos_t;       /* XXX must match fpos_t in <sys/types.h> */
+//typedef void* pid_t;
+typedef void* gid_t;
+typedef int mode_t;
+typedef int uid_t;
 #endif
