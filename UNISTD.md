@@ -29,13 +29,13 @@
 |pthread_cond_signal( )     | cnd_signal
 |pthread_cond_timedwait( )  | cnd_timedwait
 |pthread_cond_wait( )       | cnd_wait
-|pthread_create( )          | thr_create
-|pthread_detach( )          | thr_detach
-|pthread_equal( )           | thr_equal
-|pthread_exit( )            | thr_exit
-|pthread_join( )            | thr_join
+|pthread_create( )          | thrd_create
+|pthread_detach( )          | thrd_detach
+|pthread_equal( )           | thrd_equal
+|pthread_exit( )            | thrd_exit
+|pthread_join( )            | thrd_join
 |pthread_kill( )            |
-|pthread_self( )            | thr_current
+|pthread_self( )            | thrd_current
 |sched_yield( )             | thrd_yield
 |                           | thrd_sleep
 |pthread_getspecific( )     | tss_get
@@ -132,6 +132,21 @@ fscanf( ), fwrite( ), getc( ), getchar( ), gets( ), perror( ),
 + poll( ), printf( ), pread( ), pselect( ), putchar( ), puts( ), 
 putc( ), scanf( ), select( ), setbuf( ), setvbuf( ), stderr, stdin, stdout, 
 ungetc( ), vfprintf( ), vfscanf( ), vprintf( ), vscanf( ), 
+```
+
+- **POSIX_NETWORKING**: Networking
+```diff
++ accept( ), bind( ), connect( ), 
+endhostent( ), endnetent( ), endprotoent( ), endservent( ),
+freeaddrinfo( ), gai_strerror( ), getaddrinfo( ), gethostent( ), gethostname( ), getnameinfo( ),
+getnetbyaddr( ), getnetbyname( ), getnetent( ), getpeername( ), getprotobyname( ),
+getprotobynumber( ), getprotoent( ), getservbyname( ), getservbyport( ), getservent( ),
+getsockname( ), getsockopt( ), htonl( ), htons( ), if_freenameindex( ), if_indextoname( ),
+if_nameindex( ), if_nametoindex( ), inet_addr( ), inet_ntoa( ), inet_ntop( ), inet_pton( ), listen( ),
++ ntohl( ), ntohs( ), recv( ), recvfrom( ), recvmsg( ), send( ), sendmsg( ), sendto( ), 
+sethostent( ), setnetent( ), setprotoent( ), setservent( ), 
++ setsockopt( ), shutdown( ), socket( ), 
+sockatmark( ), socketpair( )
 ```
 
 - **POSIX_FILE_SYSTEM_R**: Thread-Safe File System
