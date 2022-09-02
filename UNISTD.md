@@ -50,7 +50,7 @@
 |pthread_mutex_unlock( )    | mtx_unlock
 |pthread_once( )            | call_once
 
-- POSIX_THREADS_BASE: Base Threads
+- **POSIX_THREADS_BASE**: Base Threads
 ```diff
 - pthread_atfork( ), pthread_attr_destroy( ), pthread_attr_getdetachstate( ),
 - pthread_attr_getschedparam( ), pthread_attr_init( ), pthread_attr_setdetachstate( ),
@@ -63,32 +63,42 @@
 + pthread_mutex_destroy( ), pthread_mutex_init( ), pthread_mutex_lock( ),
 + pthread_mutex_timedlock( ), pthread_mutex_trylock( ), pthread_mutex_unlock( ),
 - pthread_mutexattr_destroy( ), pthread_mutexattr_init( ), 
-+ pthread_once( ), pthread_self( ), pthread_kill( ), thread_sigmask( ),
++ pthread_once( ), pthread_self( ), pthread_kill( ), pthread_sigmask( ),
 - pthread_setcancelstate( ), pthread_setcanceltype( ), pthread_testcancel( )
 ```
-- RTS Realtime Signals
+- RTS **POSIX_REALTIME_SIGNALS**: Realtime Signals
 ```diff
 + sigqueue( ), sigtimedwait( ), sigwaitinfo( )
 ```
 
-- SEM POSIX_SEMAPHORES: Semaphores:
+- SEM **POSIX_SEMAPHORES**: Semaphores:
 ```diff
 + sem_close( ), sem_open( ), sem_unlink( ), 
 + sem_destroy( ),sem_getvalue( ),sem_init( ),sem_post( ),sem_timedwait( ), sem_trywait( ), sem_wait( )
 ```
 
-- **MSG POSIX_MESSAGE_PASSING**: Message Passing
+- MSG **POSIX_MESSAGE_PASSING**: Message Passing
 ```diff
 + mq_close( ), mq_open( ), mq_unlink( ),
 + mq_getattr( ), mq_notify( ), mq_setattr( ), 
 + mq_receive( ), mq_send( ), mq_timedreceive( ), mq_timedsend( )
 ```
 
-- **TMR POSIX_TIMERS**: Timers 
+- TMR **POSIX_TIMERS**: Timers 
 ```diff
 + clock_getres( ), clock_gettime( ), clock_settime( ), nanosleep( ), 
 + timer_create( ), timer_delete( ), timer_getoverrun( ), timer_gettime( ), timer_settime( )
 ```
+
+- **POSIX_RW_LOCKS**: Reader Writer Locks
+```diff
++ pthread_rwlock_destroy( ), pthread_rwlock_init( ), pthread_rwlock_rdlock( ),
++ pthread_rwlock_timedrdlock( ), pthread_rwlock_timedwrlock( ), pthread_rwlock_tryrdlock( ),
++ pthread_rwlock_trywrlock( ), pthread_rwlock_unlock( ), pthread_rwlock_wrlock( ),
+- pthread_rwlockattr_destroy( ), pthread_rwlockattr_init( ), 
+- pthread_rwlockattr_getpshared( ), pthread_rwlockattr_setpshared( )
+```
+
 - **POSIX_SPIN_LOCKS**: Spin Locks
 ```diff
 + pthread_spin_destroy( ), pthread_spin_init( ), pthread_spin_lock( ), pthread_spin_trylock( ), pthread_spin_unlock( )
@@ -110,12 +120,42 @@
 - signal( ), sigaction( ), sigpending( ), sigsuspend( ), sigwait( )
 ```
 
-- POSIX_DEVICE_IO: Device Input and Output: 
-FD_CLR( ), FD_ISSET( ), FD_SET( ), FD_ZERO( ), clearerr( ), close( ), fclose( ), fdopen( ), feof( ),
+- **POSIX_DEVICE_IO**: Device Input and Output
+```diff
++ FD_CLR( ), FD_ISSET( ), FD_SET( ), FD_ZERO( ), 
++ close( ), open( ), read( ), write( )
+clearerr( ), fclose( ), fdopen( ), feof( ),
 ferror( ), fflush( ), fgetc( ), fgets( ), fileno( ), fopen( ), fprintf( ), fputc( ), fputs( ), fread( ), freopen( ),
-fscanf( ), fwrite( ), getc( ), getchar( ), gets( ), open( ), perror( ), poll( ), printf( ), pread( ), pselect( ),
-putc( ), putchar( ), puts( ), pwrite( ), read( ), scanf( ), select( ), setbuf( ), setvbuf( ), stderr, stdin,
-stdout, ungetc( ), vfprintf( ), vfscanf( ), vprintf( ), vscanf( ), write( )
+fscanf( ), fwrite( ), getc( ), getchar( ), gets( ), perror( ), 
++ poll( ), printf( ), pread( ), pselect( ), putchar( ), puts( ), 
+putc( ), scanf( ), select( ), setbuf( ), setvbuf( ), stderr, stdin, stdout, 
+ungetc( ), vfprintf( ), vfscanf( ), vprintf( ), vscanf( ), 
+```
+- **POSIX_FILE_SYSTEM_R**: Thread-Safe File System
+```diff
+readdir_r( )
+```
+
+- **POSIX_MAPPED_FILES**: Memory Mapped Files
+```diff
+mmap( ), munmap( )
+```
+
+- **POSIX_MEMORY_PROTECTION**: Memory Protection
+```diff
+mprotect( )
+```
+
+- **POSIX_SINGLE_PROCESS**: Single Process
+```diff
+- confstr( ), 
++ environ, errno, getenv( ), setenv( ), sysconf( ), uname( ), unsetenv( )
+```
+
+- **POSIX_REGEXP**: Regular Expressions
+```diff
+regcomp( ), regerror( ), regexec( ), regfree( )
+```
 
 [POSIX.1-2017] IEEE Std 1003.1tm -2017 (Revision of IEEE Std 1003.1-2008)
 The Open Group Standard Base Specfications, Issue 7
