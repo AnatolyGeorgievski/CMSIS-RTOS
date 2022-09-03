@@ -149,6 +149,13 @@ sethostent( ), setnetent( ), setprotoent( ), setservent( ),
 sockatmark( ), socketpair( )
 ```
 
+- **POSIX_FILE_SYSTEM**: File System
+```diff
++access( ), chdir( ), closedir( ), creat(+), fchdir( ), fpathconf( ), fstat( ), fstatvfs( ), getcwd( ), link( ),
+mkdir( ), mkstemp( ), opendir( ), pathconf( ), readdir( ), remove( ), rename( ), rewinddir( ), rmdir( ),
+stat( ), statvfs( ), tmpfile( ), tmpnam( ), truncate( ), unlink(), utime( )
+```
+
 - **POSIX_FILE_SYSTEM_R**: Thread-Safe File System
 ```diff
 readdir_r( )
