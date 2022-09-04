@@ -151,14 +151,15 @@ sockatmark( ), socketpair( )
 
 - **POSIX_FILE_SYSTEM**: File System
 ```diff
-+access( ), chdir( ), closedir( ), creat(+), fchdir( ), fpathconf( ), fstat( ), fstatvfs( ), getcwd( ), link( ),
-mkdir( ), mkstemp( ), opendir( ), pathconf( ), readdir( ), remove( ), rename( ), rewinddir( ), rmdir( ),
-stat( ), statvfs( ), tmpfile( ), tmpnam( ), truncate( ), unlink(), utime( )
++ access( ), chdir( ), closedir( ), creat( ), fchdir( ), fpathconf( ), fstat( ), link( ),
++ mkdir( ), mkstemp( ), opendir( ), pathconf( ), remove( ), rename( ), rmdir( ),
++ stat( ), tmpfile( ), runcate( ), unlink(), 
+- fstatvfs( ), getcwd( ), readdir( ), rewinddir( ), statvfs( ), tmpnam( ), utime( )
 ```
 
 - **POSIX_FILE_SYSTEM_R**: Thread-Safe File System
 ```diff
-readdir_r( )
++ readdir_r( )
 ```
 
 - **POSIX_MAPPED_FILES**: Memory Mapped Files
@@ -173,8 +174,8 @@ mprotect( )
 
 - **POSIX_SINGLE_PROCESS**: Single Process
 ```diff
-- confstr( ), 
-+ environ, errno, getenv( ), setenv( ), sysconf( ), uname( ), unsetenv( )
+- confstr( ), setenv( ), unsetenv( ), 
++ environ, errno, getenv( ), ysconf( ), uname( )
 ```
 
 [POSIX.1-2017] IEEE Std 1003.1tm -2017 (Revision of IEEE Std 1003.1-2008)
