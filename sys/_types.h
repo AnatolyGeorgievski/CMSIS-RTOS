@@ -22,7 +22,4 @@ typedef long _off_t;
 typedef _off_t off_t;		/* XXX must match off_t in <sys/types.h> */
 typedef long _fpos_t;       /* XXX must match fpos_t in <sys/types.h> */
 //typedef void* pid_t;
-typedef void* gid_t;
-typedef int mode_t;
-typedef int uid_t;
 #endif

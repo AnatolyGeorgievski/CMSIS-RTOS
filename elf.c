@@ -129,7 +129,7 @@ struct _ElfCtx {
 	
 };
 /*! \brief декодирование ULEB128 поля целого числа без знака переменной длины */
-uint8_t * dwarf_uleb128_decode(uint32_t *dst, int dst_bits,  uint8_t *src)
+static uint8_t * dwarf_uleb128_decode(uint32_t *dst, int dst_bits,  uint8_t *src)
 {
 	Elf32_Word result = 0;
 	int shift = 0;
@@ -143,7 +143,7 @@ uint8_t * dwarf_uleb128_decode(uint32_t *dst, int dst_bits,  uint8_t *src)
 	return src;
 }
 /*! \brief декодирование ULEB128 поля целого числа со знаком */
-uint8_t * dwarf_leb128_decode(int32_t *dst, int dst_bits,  uint8_t *src)
+static uint8_t * dwarf_leb128_decode(int32_t *dst, int dst_bits,  uint8_t *src)
 {
 	Elf32_Word result=0;
 	int shift =0;
@@ -312,7 +312,7 @@ int elf_relocate_segment(Elf32_Rel* reloc, int r_num,
 	return i; // номер следующей записи в сегменте перемещений
 }
 __attribute__((noinline))
-static int elf_section_id(Elf32_Shdr *shdr, int shnum, int type_id)
+static int elf_section_id(const Elf32_Shdr *shdr, int shnum, int type_id)
 {
 	int i;
 	if (shdr==NULL) return 0;
@@ -321,15 +321,9 @@ static int elf_section_id(Elf32_Shdr *shdr, int shnum, int type_id)
 	}
 	return 0;
 }
-__attribute__((noinline))
-static void* elf_section_load(FILE* fp, uint32_t offset, size_t size) 
-{
-	fpos_t fpos = offset;
-	fsetpos(fp, &fpos);
-	void* section = malloc(size);
-	fread(section, 1, size, fp);
-	return section;
-}
+
+// todo заменить на section = mmap(0, size, prot, flags, fildes, offset);
+// ssize_t pread(int fildes, void *buf, size_t nbyte, off_t offset);
 
 #define STN_UNDEF 0
 /*! \brief Найти символ с использованием хеш таблиц
@@ -378,51 +372,69 @@ static uint32_t elf_hashtable_insert(ElfHash_t *htable, const char *name)
 /* для динамической заменить на списки односвязные */
 	return y;
 }
-
+#include <unistd.h>
+#include <fcntl.h>
+#include "dlfcn.h"
 typedef struct _dlCtx dlCtx_t;
 struct _dlCtx {
 	ElfHash_t  * htable;
 	Elf32_Sym* dynsym;
 	char * dynstr;
+	int fd;
 };
-
-void* dlopen(const char* filename, int flags)
+static void* elf_section_map(int fd, off_t offset, size_t size)
 {
-	FILE* fp = fopen(filename, "rb");
-	Elf32_Ehdr* elf_header = malloc(sizeof(Elf32_Ehdr));
+	void* buf = malloc(size);
+	lseek(fd, offset, SEEK_SET);
+	read(fd, buf, size);
+	return buf;
+}
+static void  elf_section_unmap(void* data, size_t size) {
+	free(data);
+}
+void* dlopen(const char* filename, int mode)
+{
+	// FILE* fp = fopen(filename, "rb");
+	int fd = open(filename, O_RDONLY);
+//	Elf32_Ehdr* elf_header = malloc(sizeof(Elf32_Ehdr));
 	// загрузкить заголовок
-	fread(&elf_header, 1, sizeof(Elf32_Ehdr), fp);
+	Elf32_Ehdr* elf_header = elf_section_map(fd, 0, sizeof(Elf32_Ehdr));
+	//fread(&elf_header, 1, sizeof(Elf32_Ehdr), fp);
 	uint32_t e_shoff = elf_header->e_shoff;	// смещение секции заголовков сегментов
 	uint32_t shnum   = elf_header->e_shnum;	// число заголовков сегментов
-	free(elf_header);
-	dlCtx_t * ctx = malloc(sizeof(dlCtx_t));
-	Elf32_Shdr* shdr = elf_section_load(fp, e_shoff, shnum * sizeof(Elf32_Shdr));
+	elf_section_unmap(elf_header, sizeof(Elf32_Ehdr));
+	
 	int idx;
+	dlCtx_t * ctx = malloc(sizeof(dlCtx_t));
+	ctx->fd = fd;
+	const Elf32_Shdr* shdr = elf_section_map(fd, e_shoff, shnum * sizeof(Elf32_Shdr));
 	// выполнить Relocations
 	// можно загрузить секцию DYNAMIC 
 	idx = elf_section_id(shdr, shnum, SHT_HASH);
-	ctx->htable = elf_section_load(fp, shdr[idx].sh_offset, shdr[idx].sh_size);
+	ctx->htable = elf_section_map(fd, shdr[idx].sh_offset, shdr[idx].sh_size);
 	idx = elf_section_id(shdr, shnum, SHT_DYNSYM);
-	ctx->dynsym = elf_section_load(fp, shdr[idx].sh_offset, shdr[idx].sh_size);
+	ctx->dynsym = elf_section_map(fd, shdr[idx].sh_offset, shdr[idx].sh_size);
 	idx = elf_section_id(shdr, shnum, SHT_STRTAB);
-	ctx->dynstr = elf_section_load(fp, shdr[idx].sh_offset, shdr[idx].sh_size);
-	free(shdr);
-	fclose(fp);
+	ctx->dynstr = elf_section_map(fd, shdr[idx].sh_offset, shdr[idx].sh_size);
+	close(ctx->fd);
+	elf_section_unmap((void*)shdr,0);
 	return ctx;
 }
 void* dlsym(void* handler, const char* name)
 {
 	dlCtx_t * ctx = handler;
 	uintptr_t addr = elf_hashtable_lookup(ctx->htable, name, ctx->dynsym, ctx->dynstr);
+	// пересчитать адрес
 	return (void*)addr;
 }
-void  dlclose(void* handler)
+int  dlclose(void* handler)
 {
 	dlCtx_t * ctx = handler;
-	free(ctx->htable);
-	free(ctx->dynsym);
-	free(ctx->dynstr);
+	elf_section_unmap(ctx->htable,0);
+	elf_section_unmap(ctx->dynsym,0);
+	elf_section_unmap(ctx->dynstr,0);
 	free(ctx);
+	return 0;
 }
 /* The Dynamic Linking library, libdl
 #define EXPORT_SYMBOL(sym) extern __typeof__(sym) sym
@@ -723,6 +735,15 @@ const Names_t dt_names[DT_NUM] = {
 	{DT_TEXTREL, "TEXTREL"},
 	{DT_JMPREL,  "JMPREL"},
 };
+__attribute__((noinline))
+static void* elf_section_load(FILE* fp, off_t offset, size_t size) 
+{
+	fpos_t fpos = offset;
+	fsetpos(fp, &fpos);
+	void* section = malloc(size);
+	fread(section, 1, size, fp);
+	return section;
+}
 
 // bsearch(uint32_tconst void *key, const void *base, size_t num, size_t size,
 //              int (*cmp)(const void *key, const void *))
