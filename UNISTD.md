@@ -34,10 +34,9 @@
 |pthread_equal( )           | thrd_equal
 |pthread_exit( )            | thrd_exit
 |pthread_join( )            | thrd_join
-|pthread_kill( )            |
 |pthread_self( )            | thrd_current
 |sched_yield( )             | thrd_yield
-|                           | thrd_sleep
+|nanosleep( )               | thrd_sleep
 |pthread_getspecific( )     | tss_get
 |pthread_setspecific( )     | tss_set
 |pthread_key_create( )      | tss_create
@@ -160,6 +159,21 @@ sockatmark( ), socketpair( )
 - **POSIX_FILE_SYSTEM_R**: Thread-Safe File System
 ```diff
 + readdir_r( )
+```
+- **POSIX_FILE_SYSTEM_FD**: File System File Descriptor Routines
+```diff
+faccessat( ), fdopendir( ), fstatat( ), linkat( ), mkdirat( ), openat( ), 
+renameat( ), unlinkat( ), utimensat( )
+```
+
+- **POSIX_FILE_ATTRIBUTES**: File Attributes
+```diff
++ chmod( ), chown( ), fchmod( ), fchown( ), umask( )
+```
+
+- **POSIX_FILE_ATTRIBUTES_FD**: File Attributes File Descriptor Routines
+```diff
+fchmodat( ), fchownat( )
 ```
 
 - **POSIX_MAPPED_FILES**: Memory Mapped Files
