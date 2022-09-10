@@ -6,18 +6,19 @@
 
 |Сокр| Определение
 |:--- |:--
-|BAR| _POSIX_BARRIERS (Barriers)
-|CS | _POSIX_CLOCK_SELECTION (Clock Selection)
-|MF | _POSIX_MAPPED_FILES (Memory Mapped Files)
-|MPR| _POSIX_MEMORY_PROTECTION (Memory Protection)
-|MSG| _POSIX_MESSAGE_PASSING (Message Passing)
-|RTS| _POSIX_REALTIME_SIGNALS (Realtime Signals Extension)
-|SEM| _POSIX_SEMAPHORES (Semaphores)
-|SHM| _POSIX_SHARED_MEMORY_OBJECTS (Shared Memory Objects)
-|  | _POSIX_SIGNALS (Signals)
-|SPI| _POSIX_SPIN_LOCKS (Spin Locks)
-|THR| _POSIX_THREADS (Threads)
-|TMR| _POSIX_TIMERS (Timers)
+|AIO| POSIX_ASYNCHRONOUS_IO ()
+|BAR| POSIX_BARRIERS (Barriers)
+|CS | POSIX_CLOCK_SELECTION (Clock Selection)
+|MF | POSIX_MAPPED_FILES (Memory Mapped Files)
+|MPR| POSIX_MEMORY_PROTECTION (Memory Protection)
+|MSG| POSIX_MESSAGE_PASSING (Message Passing)
+|SEM| POSIX_SEMAPHORES (Semaphores)
+|SHM| POSIX_SHARED_MEMORY_OBJECTS (Shared Memory Objects)
+|SIG| POSIX_SIGNALS (Signals)
+|RTS| POSIX_REALTIME_SIGNALS (Realtime Signals Extension)
+|SPI| POSIX_SPIN_LOCKS (Spin Locks)
+|THR| POSIX_THREADS (Threads)
+|TMR| POSIX_TIMERS (Timers)
 
 - THR Threads, в RTOS представлены треды C11 совместимые, планируется поддержка pthread, без атрибутов
 
@@ -125,9 +126,10 @@
 - **POSIX_DEVICE_IO**: Device Input and Output
 ```diff
 + FD_CLR( ), FD_ISSET( ), FD_SET( ), FD_ZERO( ), 
-+ close( ), open( ), read( ), write( )
-clearerr( ), fclose( ), fdopen( ), feof( ),
-ferror( ), fflush( ), fgetc( ), fgets( ), fileno( ), fopen( ), fprintf( ), fputc( ), fputs( ), fread( ), freopen( ),
++ clearerr( ), close( ), open( ), read( ), write( )
+close( ), fdopen( ), feof( ),
+ferror( ), fflush( ), fgetc( ), fgets( ), fileno( ), 
+fopen( ), fprintf( ), fputc( ), fputs( ), fread( ), freopen( ),
 fscanf( ), fwrite( ), getc( ), getchar( ), gets( ), perror( ), 
 + poll( ), printf( ), pread( ), pselect( ), putchar( ), puts( ), 
 putc( ), scanf( ), select( ), setbuf( ), setvbuf( ), stderr, stdin, stdout, 
