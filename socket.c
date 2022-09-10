@@ -146,6 +146,20 @@ static void socket_atomic_prepend(struct _socket** next, struct _socket* elem)
 		__DMB();
 	} while (!atomic_pointer_compare_and_exchange(ptr, elem->next, elem));
 }
+
+
+/*! \defgroup POSIX_NETWORKING POSIX: Networking
+	\ingroup _posix
+accept( ), bind( ), connect( ), endhostent( ), endnetent( ), endprotoent( ), endservent( ),
+freeaddrinfo( ), gai_strerror( ), getaddrinfo( ), gethostent( ), gethostname( ), getnameinfo( ),
+getnetbyaddr( ), getnetbyname( ), getnetent( ), getpeername( ), getprotobyname( ),
+getprotobynumber( ), getprotoent( ), getservbyname( ), getservbyport( ), getservent( ),
+getsockname( ), getsockopt( ), htonl( ), htons( ), if_freenameindex( ), if_indextoname( ),
+if_nameindex( ), if_nametoindex( ), inet_addr( ), inet_ntoa( ), inet_ntop( ), inet_pton( ), listen( ),
+ntohl( ), ntohs( ), recv( ), recvfrom( ), recvmsg( ), send( ), sendmsg( ), sendto( ), sethostent( ),
+setnetent( ), setprotoent( ), setservent( ), setsockopt( ), shutdown( ), socket( ), sockatmark( ),
+socketpair( )
+	\{ */
 /*! 
 
 теория операции: номер сокета равен номеру флага при ожидании события 
@@ -454,3 +468,4 @@ int socket_in_push(int protocol, uint8_t* buf, size_t framelength, void* desc)
 	}
 	return res;
 }
+	//!\}

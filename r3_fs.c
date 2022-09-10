@@ -7,7 +7,9 @@
 #define RFS_JOURNAL_SUPERBLOCK 0
 
 #pragma GCC optimize ("Os")
-
+/*! \defgroup _rfs Memory Mapped File System (RFS) 
+	\ingroup _system
+ */
 /// \todo Внимание мы определяем только ту часть которая тут используется, от этой структуры наследуется остальное
 struct _DeviceInfo {
     struct _DeviceObject * device; // сам объект
@@ -23,17 +25,23 @@ struct _RFSjournal {
 	uint32_t crc;	// контрольная сумма
 	RFSvec* space;  // пространство векторов журнала
 };
+
 typedef struct _dtree dtree_t;
+// Структура выделяется слайсами из пула
 struct _dtree {
-    struct _dtree* next;// директория
-    void* data;// директория
-    uint32_t key;
+//    dtree_t* prev;	//!< левое поддерево
+    dtree_t* next;	//!< правое дерево
+    void * value;
+    uint32_t  key;	//!< ключ
+	const char * d_name;
 };
 dtree_t* dtree_lookup(dtree_t** prev, uint32_t key)
 {
     dtree_t* node;
     while ((node = *prev)!=NULL) {
-        if (node->key == key) break;
+		int32_t cmp = key - node->key;
+        if (cmp==0) break;
+//        prev = (cmp < 0)? &node->prev: &node->next;
         prev = &node->next;
     }
     return node;
@@ -73,7 +81,10 @@ struct _RFS {
 //	tree_t* files;
 	BlockMedia* media;
 };
-
+/*! \defgroup rfs_vector Фрагментация 
+	\ingroup _rfs
+	\{
+ */
 /*! \brief выделить вектор из пространства векторов
     \param size - размер в блоках
     \param actual_size - выделенный размер
@@ -243,6 +254,7 @@ static uint32_t rfs_vector_next(RFSvec ** rfs_space, uint32_t block)
 	}
 	return 1;
 }
+	//!\}
 #if 0 // измышление на тему выделения блоков 4096 блоков это 128 слов.
 {
 	int nbits = (offset)&31;
@@ -261,6 +273,10 @@ static uint32_t rfs_vector_next(RFSvec ** rfs_space, uint32_t block)
 	}
 }
 #endif
+/*! \defgroup rfs_encode Кодирование и декодирование данных на носителе 
+	\ingroup _rfs
+	\{
+ */
 /*! \brief кодирование пропуска
     переход к следующему блоку вставляется только если заданный размер не укладываетя до конца блока
  */
@@ -324,6 +340,18 @@ static uint8_t* rfs_decode_skip(RFS*rfs, uint8_t* data)
     }
     return data;
 }
+static int _optional(uint8_t* data, uint8_t type){
+	return (data[0]>>4) == type;
+}
+
+static uint8_t* rfs_decode_slen (RFS* rfs, uint8_t* data, size_t *slen)
+{
+	const uint8_t mask = 007;
+    size_t size = (*data++)& mask;
+	if (size == mask) size += *data++;
+	*slen  = size;
+	return data;
+}
 /*! \brief декодирование целого числа */
 static uint8_t* rfs_decode_uint(RFS* rfs, uint8_t* data, uint32_t* value)
 {
@@ -342,7 +370,9 @@ static uint8_t* rfs_decode_u32(RFS* rfs, uint8_t* data, uint32_t* value)
 	*value = *(uint32_t*)data;
 	return data+4;
 }
+	//!\}
 /*! \brief сбросить журнал на носитель
+	\ingroup _rfs
     \return указатель на начало блока данных, буфер для продолжения записи в журнал
  */
 void* rfs_journal_flush(RFS* rfs)//, uint8_t * data, size_t size)
@@ -361,6 +391,7 @@ void* rfs_journal_flush(RFS* rfs)//, uint8_t * data, size_t size)
 	journal->size = 0;
     return journal->data;
 }
+#if 1 //BACNET
 static void _object_delete(DeviceInfo_t* devinfo, uint32_t object_identifier)
 {
 	tree_t *leaf = tree_remove(&devinfo->device_objects, object_identifier);
@@ -410,7 +441,9 @@ static Object_t* _object_init(DeviceInfo_t *devinfo, uint32_t object_identifier,
         tree_insert_tree(&devinfo->device_objects, leaf);
     return object;
 }
+#endif
 /*! \brief производит загрузку журнала в память
+	\ingroup _rfs
     \param offset - смещение от начала носителя выражается в страница памяти 4к
     \param size - размер выражается в страница памяти 4к или 512b
 */
@@ -434,7 +467,9 @@ void rfs_journal_init(RFS * rfs, DeviceInfo_t* devinfo, BlockMedia* media,
 
 // Журнал может располагаться во внутренней флеш памяти или Quad-SPI
 	rfs->journal.block = RFS_JOURNAL_SUPERBLOCK;//
-    uint8_t *data = media->read(media->data, NULL, rfs->journal.block, BLOCK_MEDIA_UNIT);
+//	uint8_t *data = media->read(media->data, NULL, rfs->journal.block, BLOCK_MEDIA_UNIT);
+	uint8_t *data = mmap(media->data, BLOCK_MEDIA_UNIT, PROT_READ, MAP_FIXED, dsk, rfs->journal.block);
+
     rfs->journal.data = data;
 	rfs->journal.offset=0;
 // Журнал может занимать один или два блока. Проверить оба.
@@ -444,7 +479,6 @@ void rfs_journal_init(RFS * rfs, DeviceInfo_t* devinfo, BlockMedia* media,
 		data = rfs_decode_uint(rfs, data, &rfs->revision);
 		printf ("Volume ID: %08X\n", rfs->volume_id);
 		printf ("Revision : %d\n", rfs->revision);
-		printf("Revision: %x\n", rfs->revision);
 	}
 #if 0
 	data += (size-1)*BLOCK_MEDIA_UNIT;
@@ -478,8 +512,23 @@ void rfs_journal_init(RFS * rfs, DeviceInfo_t* devinfo, BlockMedia* media,
 
 		} break;
 		case RFS_CREATE: {// создать объект
-			uint32_t  object_identifier;
+			OID_t  object_identifier, parent_oid;
+			size_t slen;
+			mode_t mode;// short
+			const char* object_name;
 			data = rfs_decode_u32(rfs, data, &object_identifier);
+			// сборка объекта _FILE
+			if (_optional(data, ASN_CONTEXT(0)))
+				data = rfs_decode_u32(rfs, data, &parent_oid);
+			if (_optional(data, ASN_CONTEXT(1))) {// directory entry
+				data = rfs_decode_slen(rfs, data, &slen);
+				dir_insert(parent_oid, object_identifier, object, data, slen) ;
+				data+= slen;
+			}
+			if (_optional(data, ASN_CONTEXT(2)))
+				data = rfs_decode_uint(rfs, data, &object_name);
+			// сериализация _FILE
+			if (object->)
 			Object_t* object = _object_lookup(devinfo, object_identifier);
 			if (object==NULL) {
 				object = _object_new(object_identifier);
@@ -491,7 +540,32 @@ void rfs_journal_init(RFS * rfs, DeviceInfo_t* devinfo, BlockMedia* media,
 			data = rfs_decode_u32(rfs, data, &object_identifier);
 			_object_delete(devinfo, object_identifier);
 		} break;
-		case RFS_APPEND: {// дописать вектор по идентификатору файла
+		case RFS_DENTRY: {/* установить связь - это может быть директория или symlink или rename или unlink. 
+			Удалить можно методом object_identifier2 = UNDEFINED */
+			const char* name =NULL;
+			size_t slen =0;
+			data = rfs_decode_u32(rfs, data, &object_identifier);
+			if (_optional(data, ASN_CONTEXT(0)))
+				data = rfs_decode_u32(rfs, data, &object_identifier2);
+			if (_optional(data, ASN_CONTEXT(1))) {
+				data = rfs_decode_slen(rfs, data, &slen);
+				name = data, data+=slen;
+			}
+			
+			if (name) {
+				dentry->d_name = name;
+				dentry->d_ino  = object_identifier2;
+				dtree_replace(dirp, dentry);
+			} else 
+				dtree_remove (dirp, NULL);
+		} break;
+		case RFS_ATTRIB: {// свойства объекта
+			Object_t* object = _object_lookup(devinfo, object_identifier);
+			
+		} break;
+		case RFS_APPEND: {/* дописать вектор по идентификатору файла 
+			можно добавить штамп времени
+			*/
 			uint32_t  object_identifier, offset, size;
 			data = rfs_decode_u32 (rfs, data, &object_identifier);
 			data = rfs_decode_uint(rfs, data, &offset);
@@ -577,6 +651,7 @@ static void _object_serialize(uint32_t object_identifier, void* value, void* use
 }
 
 /*! \brief регенерация журнала системы
+	\ingroup _rfs
 */
 void rfs_journal_regen(RFS* rfs, DeviceInfo_t* devinfo)
 {
@@ -615,6 +690,9 @@ void rfs_journal_regen(RFS* rfs, DeviceInfo_t* devinfo)
     // printf("journal size =%d+%d B\n", (rfs->journal.block<<9),rfs->journal.offset );
 }
 #endif
+/*! \breif Записть объекта в журнал	
+	\ingroup _rfs
+ */
 void rfs_journal_object(RFS* rfs, struct _Object* object)
 {
     uint8_t * data = rfs->journal.data + rfs->journal.size;
@@ -623,6 +701,9 @@ void rfs_journal_object(RFS* rfs, struct _Object* object)
                              object->property_list.array, object->property_list.count);
     rfs->journal.size = data - rfs->journal.data;
 }
+/*! \breif Дописывание фрагментов файлов в журнал	
+	\ingroup _rfs
+ */
 void rfs_journal_append(RFS* rfs, struct _Object* object)
 {
     uint8_t * data = rfs->journal.data + rfs->journal.size;
@@ -907,6 +988,7 @@ int fseek(FILE* fp, long offset, int whence)
 }
 #endif // 0
 /*! \brief Инициализация файловой системы
+	\ingroup _rfs
  */
 void* RFS_init(void* data) {
     printf("%s\r\n", __FUNCTION__);

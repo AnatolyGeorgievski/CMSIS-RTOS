@@ -7,9 +7,8 @@
 typedef struct _thread osThread_t;
 extern volatile osThread_t* current_thread;
 
-/*! \ingroup _system
-    \defgroup _semaphore Semaphore Management
-
+/*!	\defgroup _semaphore2 RTOSv2: Semaphore Management
+	\ingroup _rtos2
     \{
     */
 /// семафор приватное определение

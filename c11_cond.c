@@ -1,8 +1,13 @@
-#include <cmsis_os2.h>
+//#include <cmsis_os2.h>
 #include <threads.h>
-/*! \ingroup _system
-	\defgroup _cond_ C11 Condition
-	
+#include <sys/thread.h>
+#include <svc.h>
+
+typedef struct _thread osThread_t;
+#define THREAD_PTR(x) ((osThread_t*)(x))
+
+/*!	\defgroup _cond_ C11 Condition Variables
+	\ingroup _system _libc
 
 	\brief Функции управлениея некондицией процессов. 
 	
@@ -146,7 +151,7 @@ static inline uint32_t div1M(uint32_t v) {
 помещается в список некондиции, связанный с идентификатором группы некондиции \b cond.
 
 Рекомендуемый способ вызова:
-clock_gettime(CLOCK_REALTIME, &ts);
+timespec_get(&ts, TIME_UTC);
 ts.tv_nsec += Nanosec(timeout);
 if (ts.tv_nsec>=1`000`000`000) {
 	ts.tv_sec  += ts.tv_nsec / 1`000`000`000;
@@ -175,10 +180,22 @@ int cnd_timedwait(cnd_t *restrict cond, mtx_t *restrict mtx, const struct timesp
 	} while (!atomic_pointer_compare_and_exchange(head, node->next, node));
 	__DMB();
 	// с насыщением!!!
-	// uint32_t millisec = ts!=NULL?div1M(ts->tv_nsec) + __USAT(ts->tv_sec,32-10)*1000 : osWaitForever;
-    osEvent_t event = {.status = osEventSemaphore,.value ={.p = (void*)&mtx->count}};
-	return osEventTimedWait(&event, ts);// абсолютное время
-//	return thrd_error;
+	struct timespec dt;
+	timespec_get(&dt, TIME_UTC);// UTC based Мы тут используем функцию из C11 как и треды
+	dt.tv_sec = ts->tv_sec - dt.tv_sec;
+	dt.tv_nsec = ts->tv_nsec - dt.tv_nsec;
+	if (dt.tv_nsec<0) {
+		dt.tv_nsec+= 1000000000UL;
+		dt.tv_sec ++;
+	}
+	uint32_t interval = (dt.tv_sec*1000000 + dt.tv_nsec/1000);
+	svc3(SVC_EVENT_WAIT, osEventSemaphore, (void*)&mtx->count, interval);
+	thrd_t thr = thrd_current();
+	int status = THREAD_PTR(thr)->process.event.status;
+	return (status & osEventSemaphore)?thrd_success:thrd_timedout;
+	
+//    osEvent_t event = {.status = osEventSemaphore,.value ={.p = (void*)&mtx->count}};
+//	return osEventTimedWait(&event, ts);// абсолютное время
 }
 int cnd_wait(cnd_t *cond, mtx_t *mtx)
 {

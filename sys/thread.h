@@ -16,8 +16,9 @@ struct _Event  {
 };
 struct _Process {
 	volatile sig_atomic_t signals;// \sa POSIX sigset_t
+	sigset_t sig_mask;//!< Блокировка сигналов пользователя \see POSIX \ref pthread_sigmask
 	struct _Event event;
-	struct {// \sa POSIX struct i
+	struct _Wait {// \sa POSIX struct i
 		uint32_t timestamp;
 		uint32_t timeout;// interval
 	} wait;
@@ -36,17 +37,17 @@ struct _thread {
 	int8_t priority;	//!< приоритет исполнения
 	const void* attr;	//!< Атрибуты треда
 	void* tss;	//!< Thread Specific Storage
-	sigset_t sig_mask;//!< Блокировка сигналов пользователя \see POSIX \ref pthread_sigmask
 };
 enum {
 	osEventComplete	=0, 
 	osEventRunning 	=1, 
-	osEventQueued	=2,
-	osEventWaitAll	=0x04,
-	osEventSignal   =0x08,
+	osEventWaitAll	=0x02,
+	osEventSignal   =0x04,
+	osEventMail   	=0x08,
 	osEventMessage	=0x10,
 	osEventSemaphore=0x20, 
 	osEventTimeout	=0x40, 
+	osEventQueued	=0x100,
 };
 #ifndef osWaitForever
 #define osWaitForever 0xFFFFFFFFU

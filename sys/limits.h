@@ -116,7 +116,7 @@ Value: 8
 A value one greater than the maximum value that the system may assign to a newly-created
 file descriptor.
 Value: 20*/
-#define _POSIX_NAME_MAX 20
+#define _POSIX_OPEN_MAX 20
 /*{_POSIX_PATH_MAX}
 Minimum number the implementation will accept as the maximum number of bytes in a
 pathname.
@@ -153,7 +153,6 @@ particular sporadic server scheduler.
 Value: 4
 {_POSIX_STREAM_MAX}
 The number of streams that one process can have open at one time.
-Value: 8
-*/
+Value: 8 */
 #define _POSIX_STREAM_MAX 8
 #endif//_SYS_LIMITS_H_

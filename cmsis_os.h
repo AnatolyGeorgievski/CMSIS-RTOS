@@ -49,10 +49,10 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *---------------------------------------------------------------------------*/
-
-/*!
-    \ingroup _system
-    \defgroup _cmsis_os_h Header File Template: cmsis_os.h
+/*! \defgroup _rtos CMSIS-RTOS API 
+	\brief Cortex-M System Interface API
+	
+	Header File Template: <cmsis_os.h>
 
 The file \b cmsis_os.h is a template header file for a CMSIS-RTOS compliant Real-Time Operating System (RTOS).
 Each RTOS that is compliant with CMSIS-RTOS shall provide a specific \b cmsis_os.h header file that represents
@@ -158,6 +158,7 @@ used throughout the whole project.
 #define osFeature_Pool         1       ///< Memory Pools:    1=available, 0=not available
 #define osFeature_MailQ        0       ///< Signal Queues:   1=available, 0=not available
 #define osFeature_MessageQ     0       ///< Message Queues:  1=available, 0=not available
+#define osFeature_Mutex		   1       ///< Mutex:  1=available, 0=not available
 #define osFeature_Signals      31      ///< maximum number of Signal Flags available per thread
 #define osFeature_Semaphore    30      ///< maximum count for \ref osSemaphoreCreate function
 #define osFeature_Wait         1       ///< osWait function: 1=available, 0=not available
@@ -561,18 +562,7 @@ RWLock
 
 //  ==== Generic Wait Functions ====
 /*! Добавить событие в группу */
-/*
-osEvent event_list[4];
-osKernel(,,&event_list[3]);
-osEventGroupWait()
 
-static inline osStatus osEventGroupWait (const osEvent* event_group, uint32_t num_events, uint32_t millisec)
-{
-    osEvent event = {.status = osEventGroup, .value.p = event_group};
-	osEventWait(&event, millisec);
-	return event.status;
-}
-*/
 /// Wait for Timeout (Time Delay).
 /// \param[in]     millisec      time delay value
 /// \return status code that indicates the execution status of the function.
@@ -613,7 +603,7 @@ int  osServiceTimerExpired (osProcess_t *svc, uint32_t timeout);
 /// \note MUST REMAIN UNCHANGED: \b osWait shall be consistent in every CMSIS-RTOS.
 static inline 
 osEvent osWait (uint32_t millisec){
-    osEvent event = {.status = (osEventSignal/*|osEventSemaphore|osEventMessage|osEventMail*/|osEventTimeout)};
+    osEvent event = {.status = (osEventSignal|osEventSemaphore|osEventMessage|osEventMail|osEventTimeout)};
 	osEventWait(&event, millisec);
 	return  event;
 }
@@ -705,10 +695,10 @@ osEvent osSignalWait (int32_t signals, uint32_t millisec)
 	osEventWait(&event, millisec);//signals, (millisec), (osEventSignal|osEventTimeout));
 	return  event;
 }
-/*! Возвращает ссылку на бит в области bit-band */
-//int32_t* osSignalRef (osThreadId thread_id, int32_t signal); -- убрать deprecated
+
 //  ==== Mutex Management ====
 
+#if (defined (osFeature_Mutex)  &&  (osFeature_Mutex != 0))     // Mutex available
 /// Define a Mutex.
 /// \param         name          name of the mutex object.
 /// \note CAN BE CHANGED: The parameter to \b osMutexDef shall be consistent but the
@@ -753,7 +743,7 @@ osStatus osMutexRelease (osMutexId mutex_id);
 /// \return status code that indicates the execution status of the function.
 /// \note MUST REMAIN UNCHANGED: \b osMutexDelete shall be consistent in every CMSIS-RTOS.
 osStatus osMutexDelete (osMutexId mutex_id);
-
+#endif
 
 //  ==== Semaphore Management Functions ====
 

@@ -260,6 +260,16 @@ struct _Elf32_Chdr {
 #define DT_PREINIT_ARRAYSZ 33
 #define DT_NUM          34
 
+#define DT_VERSYM       0x6ffffff0
+#define DT_RELACOUNT    0x6ffffff9
+#define DT_RELCOUNT     0x6ffffffa
+#define DT_FLAGS_1      0x6ffffffb
+#define DT_VERDEF       0x6ffffffc
+#define DT_VERDEFNUM    0x6ffffffd
+#define DT_VERNEED      0x6ffffffe
+#define DT_VERNEEDNUM   0x6fffffff
+
+
 // Section Types, sh_type
 #define SHT_NULL		0
 #define SHT_PROGBITS	1
@@ -297,6 +307,7 @@ struct _Elf32_Chdr {
 
 #define SHT_GNU_ATTRIBUTES 	0x6ffffff5      // Object attributes.
 #define SHT_GNU_HASH 		0x6ffffff6    	// GNU-style hash table.
+#define SHT_GNU_LIBLIST   	0x6ffffff7
 #define SHT_GNU_verdef 		0x6ffffffd      // GNU version definitions.
 #define SHT_GNU_verneed 	0x6ffffffe      // GNU version references.
 #define SHT_GNU_versym 		0x6fffffff      // GNU symbol versions table.

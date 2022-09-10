@@ -80,6 +80,10 @@ typedef struct  {
     int32_t               signals;     ///< signal flags
   } value;                             ///< event value
 } osEvent_t; */
+
+/*! \defgroup _rtos2 CMSIS-RTOS v2 API 
+	\{
+ */
 //  ==== Enumerations, structures, defines ====
  
 /// Version information.
@@ -316,7 +320,7 @@ typedef struct {
  
 //  ==== Kernel Management Functions ====
  
-/// Initialize the RTOS Kernel.
+/// \brief  Initialize the RTOS Kernel.
 /// \return status code that indicates the execution status of the function.
 osStatus_t osKernelInitialize (void);
  
@@ -760,7 +764,7 @@ osStatus_t osMessageQueueReset (osMessageQueueId_t mq_id);
 /// \return status code that indicates the execution status of the function.
 osStatus_t osMessageQueueDelete (osMessageQueueId_t mq_id);
  
- 
+	//!\}
 #ifdef  __cplusplus
 }
 #endif

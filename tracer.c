@@ -70,7 +70,7 @@ int	TRACE_gets(Terminal* dev, unsigned char * buffer, int size)
     return idx;
 }
 
-int trace_fputs(const char *str)
+static int trace_fputs(const char *str)
 {
 	const char* s = str;
 	unsigned char* dst = (void*)tracer_ptr;//&trace->tx_buffer[trace->write_pos];
@@ -115,6 +115,7 @@ void syslog(int log_level, const char *format, ...) {
 #endif
 
 /*! \brief используется для записи текстовых сообщений форматированных в стиле printf
+	\ingroup _libc POSIX_DEVICE_IO
 */
 int printf(const char *format, ...)
 {
@@ -123,6 +124,11 @@ int printf(const char *format, ...)
     va_start(ap, format);
     vsnprintf(str, TRACE_STR_SIZE-1, format, ap);
     va_end(ap);
+    return trace_fputs(str);
+}
+int vprintf(const char *format, va_list ap){
+    char str[TRACE_STR_SIZE];
+    vsnprintf(str, TRACE_STR_SIZE-1, format, ap);
     return trace_fputs(str);
 }
 /*! \brief используется для записи текстовых строк

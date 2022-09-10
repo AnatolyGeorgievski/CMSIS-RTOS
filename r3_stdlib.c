@@ -1,32 +1,13 @@
 //-------------------------------------------------------
-/*! \addtogroup _stdlib Стандартные утилиты
-    \brief Ради избавления от лишней привязанности к стандартным библиотекам
-    мы сформулировали свою стандартную библиотеку функций.
+/*!	Ради избавления от лишней привязанности к стандартным библиотекам
+    мы сформулировали свою библиотеку поддержки Си, libс.
 	
 	21.03.2020 преобразовал в статическую библиотеку	
 	*/
-//-------------------------------------------------------
-/*! \ingroup _stdlib
-    \defgroup r3_queue Очередь объектов
-
-	Очередь применяется для организации обмена между процессами. Например, запросы ставятся
-	в очередь в одном процессе, а команды выполняются в другом процессе.
-
-	Элементы очереди организуются таким образом чтобы не заниматься
-	распределением динамической памяти. Для этого первым элементом структуры объекта должено
-	значится поле R3list.
-*/
-//#include "board.h"
-//#include <string.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
-//#include "trace.h"
-//#include "board.h"
-//#include "r3stdlib.h"
-//#include "math.h"
-//#include "r3rtos.h"
-//#include "module.h"
+
 #if 0
 unsigned char * bin2hex(unsigned char *buffer, unsigned int word)
 {
@@ -448,9 +429,10 @@ The precision specifes the minimum number of digits to appear; if the value bein
 can be represented in fewer digits, it is expanded with leading zeros. The default precision
 is 1. 
 */
-/*! \ingroup _stdlib
+/*!
 	\brief Stores the result of a formatted string into another string. Format
 	arguments are given in a va_list instance.
+	\ingroup _stdio _libc
 	\return the number of characters written
 	\param pStr    Destination string.
 	\param length  Length of Destination string.
@@ -721,9 +703,9 @@ length--;
     return size;
 }
 
-/*! \ingroup _stdlib
-	\brief Stores the result of a formatted string into another string. Format
+/*!	\brief Stores the result of a formatted string into another string. Format
 	arguments are given in a va_list instance.
+	\ingroup _stdio _libc
 	\param pString Destination string.
 	\param length  Length of Destination string.
 	\param pFormat Format string.
@@ -741,6 +723,7 @@ int snprintf(char *pString, size_t length, const char *pFormat, ...)
 
     return rc;
 }
+
 #ifdef TEST_PRINTF
 // $ gcc -DTEST_PRINTF -o printf r3core/r3_stdlib.c
 

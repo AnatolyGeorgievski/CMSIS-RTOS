@@ -1,9 +1,10 @@
-/*! \ingroup _system
+/*!
     \defgroup _thrd С11 Thread management
+	\ingroup _libc
 	\brief Управление потоками
  */
-/*! \ingroup _system
-    \defgroup _thread Thread management
+/*!	\defgroup _thread Thread management
+	\ingroup _system
 
 
 	\see [AN298] Cortex-M4(F) Lazy Stacking and Context Switching
@@ -146,6 +147,7 @@ static void svc_handler_signal  (unsigned int *frame, int svc_number) PRIVILEGED
 static void svc_handler_usleep  (unsigned int *frame, int svc_number) PRIVILEGED_FUNCTION;
 static void svc_handler_kill	(unsigned int *frame, int svc_number) PRIVILEGED_FUNCTION;
 static void svc_handler_event_wait(unsigned int *frame, int svc_number) PRIVILEGED_FUNCTION;
+static void svc_handler_notify  (unsigned int *frame, int svc_number) PRIVILEGED_FUNCTION;
 
 static TCB main_thread = {.sp = NULL, .next=&main_thread, 
 	.process.event.status = osEventRunning,
@@ -155,6 +157,13 @@ static TCB main_thread = {.sp = NULL, .next=&main_thread,
 TCB *current_thread = &main_thread; //!< указатель на дескриптор треда
 static TCB *tcb_list = &main_thread; //!< указатель на дескриптор треда. Первый элемент списка это процесс "main", он считается привелегированным и никогда не выкидывается из списка
 
+/*! \brief задать функцию обработки прерывния по событию
+	
+ */
+static void svc_handler_notify(unsigned int *frame, int svc_number)
+{
+	
+}
 static void svc_handler_signal(unsigned int *frame, int svc_number)
 {
 	TCB* thr = TCB_PTR(frame[0]);
@@ -238,7 +247,7 @@ static void svc_handler_event_wait(unsigned int *frame, int svc_number)
 {
 	//osEvent_t* event = (osEvent_t*)frame[0];// status;
 	uint32_t status  = (uint32_t)frame[0];// status;
-	void* arg  = (void*)frame[1];// status;
+	void* arg  = (void*)frame[1];// si_value arg;
 	uint32_t interval = frame[2];// delay;
 	TCB* tcb = TCB_PTR(current_thread);
 	if (interval!=osWaitForever) {// не работает проверка при умножении *1000
@@ -279,8 +288,8 @@ osStatus osThreadInit(void)
 
 #define C11_THRD
 
-/*! \ingroup _thrd 
-	\breif Создать контекст и запустить процесс
+/*!	\breif Создать контекст и запустить процесс
+	\ingroup _thrd _libc
 	\param thrd - идентификатор треда или NULL
 	\param func - функция процесса
 	\param arg - аргумент функции процесса
@@ -298,6 +307,7 @@ int thrd_create(thrd_t *thrd, thrd_start_t func, void *arg)
 	thr->process.event = (osEvent_t){.status=osEventRunning, };
 	thr->process.arg  = arg;
 	thr->process.func =  (void* (*)(void *))func;
+	thr->process.sig_mask = 0;// POSIX Signals
 	thr->error_no = 0;
 	thr->tss=NULL;	// инициализация Thread Specific Storage
 //	thr->cond=NULL; // инициализация Condition используется для ожидания завершения 
@@ -315,6 +325,7 @@ int thrd_create(thrd_t *thrd, thrd_start_t func, void *arg)
 	return thrd_success;
 }
 /*!	\brief Удалить задачу из списка активных задач
+	\ingroup _thrd _libc
 	\param args - это то что возвращается из треда
 	\return нет возврата
 	
@@ -335,10 +346,14 @@ _Noreturn void thrd_exit(int res)
     svc3(SVC_SIGNAL, self, SIGTERM, 0);
 	while(1);
 }
+/*!	\ingroup _thrd _libc
+*/
 thrd_t thrd_current(void)
 { 
 	return TCB_ID(current_thread); 
 }
+/*!	\ingroup _thrd _libc
+*/
 int thrd_joint(thrd_t thr, int *res)
 {
 #if 0
@@ -347,6 +362,8 @@ int thrd_joint(thrd_t thr, int *res)
 #endif
 	return thrd_error;
 }
+/*!	\ingroup _thrd _libc
+*/
 int thrd_detach(thrd_t thr) 
 {
 #if 0
@@ -354,10 +371,14 @@ int thrd_detach(thrd_t thr)
 #endif
 	return thrd_success;
 }
+/*!	\ingroup _thrd _libc
+*/
 void thrd_yield(void)
 {
 	svc(SVC_YIELD);
 }
+/*!	\ingroup _thrd _libc
+*/
 int thrd_sleep(const struct timespec *duration, struct timespec *remaining)
 {// see clock_nanosleep и nanosleep
 	clock_t ts;
@@ -385,20 +406,16 @@ _Noreturn void exit (int err) {
     (void) osThreadTerminate(current_thread);
 }*/
 /*! \brief В довершение процесса выполняется указанная функция 
-	\ingroup _thrd 
+	\ingroup _libc
  */
 int atexit(void (*func)(void))
 {
 	uint32_t* stk = (uint32_t*)TCB_PTR(current_thread) + (OS_CCM_SLICE>>2);
 	stk[-3] = (uint32_t)func;// подложить в стек функцию завершения
 }
-/*! \brief expands to a modifiable lvalue 
-#include <errno.h>
-#define errno (*_errno())
-*/
-/*! \brief В довершение процесса выполняется указанная функция 
-	\ingroup _thrd 
-	\required #include <errno.h>
+/*! \brief Код ошибки 
+	\ingroup _libc _aeabi
+	\headerfile <errno.h>
  */
 volatile int* __aeabi_errno_addr() 
 {
@@ -532,7 +549,9 @@ int osThreadErrno (osThreadId thr, int err_no)
 
 void  PendSV_Handler(void) PRIVILEGED_FUNCTION;
 __attribute__((naked)) void PendSV_Handler();
-/*!  \brief переключение контекстов задач
+/*! \brief переключение контекстов задач
+	\ingroup _system
+
 Cortex-M3 Cortex-M4 Cortex-M4F Cortex-M7 Cortex-M23 Cortex-M33
  */
 void PendSV_Handler()
@@ -627,7 +646,16 @@ void PendSV_Handler()
 #  endif
 #endif
 }
+
+/*! \brief Вернуть значение в регистре R0 - выход из ожидания
+на стеке: R4-R11, EXEC_RETURN, R0-R3,R12,LR,PC,xPSR
+возможно надо резервировать место под регистры S0-15, FPSCR -- тогда не работает
+ */
+static inline void _RETURN(uint32_t *sp, uintptr_t value) {
+	sp[-9] = value;
+}
 /*! \brief Планировщик процессов 
+	\ingroup _system
 	\param [in] stk указатель на стек процесса
 	\return указатель на стек процесса который будет исполняться после переключения задач.
 	
@@ -665,12 +693,15 @@ unsigned int * osThreadScheduler(unsigned int * stk)
         if (event->status & (osEventSignal)) 	{// ожидаем сигналы
 //			volatile int* ptr = event->value.p;
 //			uint32_t signals = *ptr & event->value.signals;
+			// 31.08.2022 
 			uint32_t signals = thr->process.signals & event->value.signals;
+			// uint32_t signals = thr->process.signals & thr->process.sig_mask; - хочу так
             if (signals){
 				//if ((event->status & osEventWaitAll)==0 || (signals==event->value.signals))
 				{
 					event->value.signals =(signals); // это может лишняя операция
 					event->status = osEventSignal|osEventRunning;
+					//_RETURN(thr->sp, event->status);// Выход из ожидания - установить флаг и 
 					break;
 				}
             }
@@ -684,7 +715,7 @@ unsigned int * osThreadScheduler(unsigned int * stk)
 				event->status = osEventSemaphore|osEventRunning;
 				break;
 			}
-        }
+        } 
 skip_event:
         if (event->status & (osEventTimeout)) 	{// ожидаем таймаут, можем использовать DWT->CYCCOUNT
 			uint32_t system_timestamp = clock();
@@ -794,9 +825,9 @@ osStatus osEventTimedWait (osEvent *event, const struct timespec* restrict ts)
 
 //  ==== Signal Management ====
 #if (defined(osFeature_Signals) && (osFeature_Signals!=0))
-/*! \ingroup _system
-    \defgroup _signals Signal Management
-    \{
+/*!	\defgroup _Signals RTOS: Signal Management
+	\ingroup _rtos
+	\{
  */
 int32_t osSignalSet (osThreadId thread_id, int32_t signals)
 {
@@ -828,7 +859,10 @@ int32_t* osSignalRef (osThreadId thread_id, int32_t signal)
 /*! \} */
 #endif
 //  ==== Signal Management ====
-#if (defined(osFeature_ThreadFlags) && (osFeature_ThreadFlags!=0))
+#if (defined(osFeature_ThreadFlags) && (osFeature_ThreadFlags > 0))
+/*!	\defgroup _ThreadFlags RTOSv2: Thread Flags
+	\ingroup _rtos2
+	\{ */
 uint32_t osThreadFlagsWait(uint32_t flags, uint32_t options, uint32_t timeout)
 {
 //	if (flags==0) flags = ~0;
@@ -850,4 +884,5 @@ uint32_t osThreadFlagsGet(osThreadId_t thread_id)
 {
 	return (TCB_PTR(thread_id)->process.signals & OS_SIGNAL_MASK);
 }
+/*! \} */
 #endif

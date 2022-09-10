@@ -17,7 +17,8 @@
 
 typedef struct _R3MemoryBlock R3MemoryBlock;
 struct _R3MemoryBlock{
-	unsigned int size:30;
+	unsigned int size:30;// размер кратный 4
+	unsigned int adv :1;// Advisory info POSIX_MADV_SEQUENTIAL - резервируется для последовательного выделения
 	unsigned int free:1;
 //	volatile unsigned int lock:1;
 	//unsigned char data[0];
@@ -85,7 +86,7 @@ MODULE(Garbage_Collector, NULL, r3_mem_garbage);
 */
 void free(void* data) 
 {
-	R3MemoryBlock * block = data - sizeof (R3MemoryBlock);
+	R3MemoryBlock * block = (R3MemoryBlock *)data -1;// -sizeof (R3MemoryBlock);
 	block->free=1;
 	return;
 	R3MemoryBlock * next_block = block + block->size;
@@ -129,39 +130,40 @@ void* aligned_alloc(size_t align, size_t size)
 {
 //printf("malloc base %08X %08X %08lX\n", (unsigned int)last_block, size, align);
     if (align <R3_MEM_ALIGN) align = R3_MEM_ALIGN;
-    const long align_mask = align-1;
+    const unsigned align_mask = align-1;
 
-	size = (size + align_mask) & ~align_mask; // выравниваем на слово
+	size = (size + align_mask) & ~((size_t)align_mask); // выравниваем на слово
     size += sizeof (R3MemoryBlock);     // добавляем длину шапки -- накладные расходы
 	R3MemoryBlock block;// = last_block; // пробуем выделить память с конца
 
 	void* addr_block;
 	void* next_block;
-    volatile void ** ptr = (volatile void **)&last_block;
-	long head_align;
+	unsigned head_align;
 	align -= sizeof (R3MemoryBlock);
+    volatile void ** ptr = (volatile void **)&last_block;
 	do {
 		addr_block = (void*)atomic_pointer_get(ptr);
-        head_align = align - (((unsigned long)addr_block)& align_mask);// - sizeof (R3MemoryBlock);
+        head_align = align - (((unsigned)addr_block) & align_mask);// - sizeof (R3MemoryBlock);
         next_block = (void*)addr_block + head_align + size;
 	} while (!atomic_pointer_compare_and_exchange(ptr, addr_block, next_block));
 //printf("malloc next %08X %08X %08lX\n", (unsigned int)addr_block, (unsigned int)next_block, head_align);
 
-	if (head_align > 0)
-	{// надо отравнять шапку
-	    block.size = head_align;
-	    block.free = 1;// пустой блок
-		*(R3MemoryBlock*)addr_block = block;
-	    addr_block = (void*)addr_block + head_align;
-//printf("malloc head %08X\n", (unsigned int)addr_block);
-    }
 	block.size = size;
 	block.free = 0;
-	*(R3MemoryBlock*)addr_block = block;
+	*(volatile R3MemoryBlock*)(addr_block + head_align) = block;
+	if (head_align > 0)
+	{// надо отравнять шапку
+		atomic_mb();// fence
+	    block.size = head_align;
+	    block.free = 1;// пустой блок
+		*(volatile R3MemoryBlock*)addr_block = block;
+//printf("malloc head %08X\n", (unsigned int)addr_block);
+    }
 //printf("malloc addr %08X\n", (unsigned int)addr_block + sizeof (R3MemoryBlock));
-
+#if 0
 	if (max_block< last_block) max_block = addr_block+size;
 //    TRACE_log(TRACE_DEBUG, "mod=\"%s\" alloc=%08lX [%08X]""\r\n", module?module->name:"(null)", (u32)block, size);
+#endif
 	return (addr_block + sizeof (R3MemoryBlock));
 }
 
@@ -173,20 +175,38 @@ void* aligned_alloc(size_t align, size_t size)
     Для выделения памяти под динамические структуры данных, такие как деревья и списки
     рекомендуется использовать механизм слайсов.
 */
-extern void* malloc(size_t size)
+void* malloc(size_t size)
 {
 	return aligned_alloc(R3_MEM_ALIGN, size);
 }
-extern void* realloc(void* mem, size_t size)
+void* realloc(void* mem, size_t size)
 {
 	return NULL;//aligned_alloc(R3_MEM_ALIGN, size);
 }
 
 //void  free(void* data)  __attribute__((weak, alias("r3_mem_free")));
 //void* malloc(size_t size)  __attribute__((weak, alias("r3_mem_alloc")));
-extern void* calloc(size_t nelem, size_t elsize)
+void* calloc(size_t nelem, size_t elsize)
 {
 	return aligned_alloc(R3_MEM_ALIGN, nelem*elsize);
 }
-
+/*! \} */
+/*! \defgroup ADV POSIX: Advisory Information (ADV)
+	\ingroup _posix
+	\{
+ */
+int posix_madvise(void *data, size_t size, int adv){
+	R3MemoryBlock* block = (R3MemoryBlock*)data -1;
+	
+	// резервировать свободжный блок дальше с тем же признаком
+	int reserved = size - block->size;
+	if (reserved>0) {
+		block = (R3MemoryBlock*) ((void*)block + size);
+		if (block->free){// НАДО атомарно, дописать
+			block->adv = adv;
+		}
+	}
+	// 
+	return 0;
+}
 /*! \} */

@@ -56,7 +56,10 @@ static inline int semaphore_leave(volatile int * ptr)
     return atomic_fetch_add(ptr, 1);
     //atomic_mb();// сбрасываем ?
 }
-//
+/*! \} */
+/*! \ingroup _posix 
+	\defgroup POSIX_SEMAPHORES POSIX: Semaphores 
+	\{ */
 #define SEM_FAILED NULL
 
 typedef struct _sem sem_t;
@@ -71,6 +74,5 @@ int    sem_trywait(sem_t *);
 int    sem_unlink(const char *);
 int    sem_wait(sem_t *);
 
-
-//! \}
+/*! \} */
 #endif // SEMAPHORE_H

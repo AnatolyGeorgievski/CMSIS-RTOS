@@ -156,6 +156,8 @@ Device_t* dtree_mknodat(Device_t* fp, const char* name, mode_t mode, dev_t dev_i
 	f->dev_id  = dev_id;
 	f->ino  = atomic_fetch_add(unique_id, 1);
 	f->mode = mode & _umask;
+	f->uid = ~0; 
+	f->gid = ~0;
 	// назначить права uid и gid
 	f->nlink = 0;
 	dtree_insert(fp, name, f);	

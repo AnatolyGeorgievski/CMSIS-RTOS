@@ -10,7 +10,9 @@
 #include <semaphore.h>	// POSIX Semaphores
 #include <svc.h>		// переделать на sys/svccall.h
 #include <sys/thread.h>
+#include <sys/stdio.h>// dev
 #include <stdlib.h>		// malloc
+
 // определено в ERRNO
 //enum {EOK, EBUSY, ETIMEDOUT, EINTR, EOWNERDEAD};
 
@@ -72,22 +74,24 @@ static void* atomic_list_push(volatile void** ptr, void* data){
 	} while (!atomic_pointer_compare_and_exchange(ptr, next, item));
 	return next;
 }
-static int osEventTimedWait(int type, uint32_t value, const struct timespec * restrict ts)
-{
-	clock_t interval = (ts->tv_sec* 1000000U + ts->tv_nsec/1000) - clock();
-	svc3(SVC_EVENT_WAIT, type, value, interval);
-	pthread_t thr = pthread_self();
-	if (thr->process.event.status & type) return 0;
-	return (thr->process.event.status & osEventTimeout)? ETIMEDOUT: EINTR;
-}
 static int osEventWait(int type, uint32_t value, uint32_t interval)
 {
-	svc3(SVC_EVENT_WAIT, type, value, interval);
+	int status = svc3(SVC_EVENT_WAIT, type, value, interval);
 	pthread_t thr = pthread_self();
-	if (thr->process.event.status & type) return 0;
-	return (thr->process.event.status & osEventTimeout)? ETIMEDOUT: EINTR;
+	status = thr->process.event.status;
+	if (status & type) return 0;
+	if (status & osEventTimeout) return ETIMEDOUT;
+	return EINTR;
 }
-/*!
+static int osEventTimedWait(int type, uint32_t value, const struct timespec * restrict ts)
+{
+//	struct timespec *now;
+//	clock_gettime(CLOCK_REALTIME, &now);
+	uint32_t interval = (ts->tv_sec* 1000000U + ts->tv_nsec/1000) - clock();
+	return osEventWait(type, value, interval);
+}
+/*!	\ingroup _posix
+
 Чем отличаются мьютексы: - это невозможность разблокировать в чужом треде 
 Unlock When Not Owner
 Рекурсивные мьютексы подсчитывают число блокировок, 
@@ -105,8 +109,30 @@ Unlock When Not Owner
 - разделяемые между процессами не развит.
 */
 
-
-/* POSIX_THREADS_BASE: Base Threads
+/*! \defgroup TPS POSIX: Thread Execution Scheduling (TPS)
+	\{ */
+int pthread_attr_getschedpolicy(const pthread_attr_t *restrict attr, int *restrict policy){
+	*policy = attr->schedpolicy;
+	return 0;
+}
+int pthread_attr_setschedpolicy(pthread_attr_t *attr, int policy){
+	attr->schedpolicy = policy;
+	return 0;
+}
+int pthread_attr_setinheritsched(pthread_attr_t * attr, int inheritsched){
+	attr->inheritsched = inheritsched;
+	return 0;
+}
+int pthread_attr_getinheritsched(const pthread_attr_t *restrict attr,
+								int *restrict inheritsched){
+	*inheritsched = attr->inheritsched;
+	return 0;
+}
+	//!\}
+	
+/*! \defgroup POSIX_THREADS_BASE POSIX: Base Threads
+	\ingroup _posix
+	\{
 pthread_atfork( ), pthread_attr_destroy( ), pthread_attr_getdetachstate( ),
 pthread_attr_getschedparam( ), pthread_attr_init( ), pthread_attr_setdetachstate( ),
 pthread_attr_setschedparam( ), pthread_cancel( ), pthread_cleanup_pop( ), pthread_cleanup_push( ),
@@ -119,6 +145,31 @@ pthread_mutex_timedlock( ), pthread_mutex_trylock( ), pthread_mutex_unlock( ),
 pthread_mutexattr_destroy( ), pthread_mutexattr_init( ), pthread_once( ), pthread_self( ),
 pthread_setcancelstate( ), pthread_setcanceltype( ), pthread_setspecific( ), pthread_sigmask( ),
 pthread_testcancel( ) */
+int pthread_attr_init(pthread_attr_t * attr){
+	*attr = (pthread_attr_t){0};
+	return 0;
+}
+int pthread_attr_destroy(pthread_attr_t * attr){
+	return 0;
+}
+int pthread_attr_setdetachstate(pthread_attr_t * attr, int detached){
+	attr->detachstate = detached;
+	return 0;
+}
+int pthread_attr_getdetachstate(const pthread_attr_t * attr, int *detachstate){
+	*detachstate = attr->detachstate;
+	return 0;
+}
+int pthread_attr_setschedparam(pthread_attr_t * attr, 
+const struct sched_param *restrict schedparam){
+	//attr->schedparam = *schedparam;
+	return -1;
+}
+int pthread_attr_getschedparam(const pthread_attr_t *restrict attr, 
+struct sched_param *restrict schedparam){
+	//*schedparam = attr->schedparam;
+	return -1;
+}
 pthread_t pthread_self(void){
 	return (pthread_t)thread_current;//  переменная в кластере CPU может указывать на другой тред.
 }
@@ -132,9 +183,10 @@ int pthread_create(pthread_t *restrict thread, const pthread_attr_t *restrict at
 		thr = malloc(sizeof(osThread_t));// надо выделить shared
 		__builtin_bzero(thr, sizeof(osThread_t));
 	}
-	thr->parent = (thread==NULL)? NULL: pthread_self();
+	thr->parent = (thread==NULL)? NULL: pthread_self();// detached state
 	thr->process.func   = start_routine;
 	thr->process.arg    = arg;
+	thr->process.sig_mask = 0;
 	if (thr->next == NULL) {
 		pthread_t self = pthread_self();
 		atomic_list_push((volatile void**)&self->next, thr);
@@ -230,7 +282,6 @@ int pthread_mutex_unlock(pthread_mutex_t *mtx){
 	semaphore_leave(&mtx->count);
 	return 0;
 }
-
 int pthread_once(pthread_once_t *once_control, void (*init_routine)(void)){
 	int count = atomic_fetch_or(once_control,1);
 	if (count==0) init_routine();
@@ -241,71 +292,19 @@ int pthread_sigmask (int how, const sigset_t * restrict set, sigset_t * restrict
 	sigset_t msk;
 	switch (how) {
 	case SIG_SETMASK:
-		msk = atomic_exchange(&thr->sig_mask, set[0]);
+		msk = atomic_exchange(&thr->process.sig_mask, set[0]);
 		break;
 	case SIG_BLOCK:
-		msk = atomic_fetch_or(&thr->sig_mask, set[0]);
+		msk = atomic_fetch_or(&thr->process.sig_mask, set[0]);
 		break;
 	case SIG_UNBLOCK:
-		msk = atomic_fetch_and(&thr->sig_mask, ~set[0]);
+		msk = atomic_fetch_and(&thr->process.sig_mask, ~set[0]);
 		break;
 	}
 	if (oset) *oset = msk;
 	return 0;
 }
-#include <sys/select.h>
-// Три вида сигналов в одной маске.
-
-int __popcountsi2 (uint32_t n) {
-	uint8_t pop[16] = {0,1,1,2,1,2,2,3,1,2,2,3,2,3,3,4};
-	uint32_t count =0;
-	while (n) {
-		count += pop[n&0xF];
-		n>>=4;
-	}
-	return count;
-}
-int pselect(int nfds, fd_set *restrict readfds,
-       fd_set *restrict writefds, fd_set *restrict errorfds,
-       const struct timespec *restrict timeout,
-       const sigset_t *restrict sigmask)
-{
-	sigset_t signals = readfds->fds_bits[0]|(writefds->fds_bits[0]<<1)|(errorfds->fds_bits[0]<<2);
-	pthread_t thr = pthread_self();
-	sigset_t omask = atomic_exchange(&thr->sig_mask, sigmask[0]);// блокировать сигналы пользователя
-	uint32_t interval = (uint32_t)((timeout->tv_sec*1000000U)+ timeout->tv_nsec/1000U);
-	osEventWait(osEventSignal, signals, interval);
-	int event_type = thr->process.event.status;
-	if (event_type & osEventSignal) {
-		signals     &= atomic_fetch_and(&thr->process.signals, ~signals);
-		readfds ->fds_bits[0] &= signals;
-		writefds->fds_bits[0] &= signals>>1;
-		errorfds->fds_bits[0] &= signals>>2;
-		thr->sig_mask = omask;// восстановить сигналы
-		return __builtin_popcount(signals); 
-	}
-	thr->sig_mask = omask;// восстановить сигналы
-	return (event_type & osEventTimeout)?0: -1;
-}
-int select(int nfds, fd_set *restrict readfds,
-       fd_set *restrict writefds, fd_set *restrict errorfds,
-       const struct timeval *restrict ts)
-{
-	
-	sigset_t signals = readfds->fds_bits[0]|(writefds->fds_bits[0]<<1)|(errorfds->fds_bits[0]<<2);
-	uint32_t interval = ts->tv_sec* 1000000U + ts->tv_usec;
-	osEventWait(osEventSignal, signals, interval);
-	pthread_t thr = pthread_self();
-	int event_type = thr->process.event.status;
-	if (event_type & osEventSignal) {
-		signals  &= atomic_fetch_and(&thr->process.signals, ~signals);
-		readfds ->fds_bits[0]  &= signals;
-		writefds->fds_bits[0] &= signals>>1;
-		errorfds->fds_bits[0] &= signals>>2;
-		return __builtin_popcount(signals); 
-	}
-	return (event_type & osEventTimeout)?0: -1;
-}
+//!\}
 #if 0
 int socket(int domain, int type, int protocol) {
 	int fd = _flags_alloc();
@@ -340,10 +339,11 @@ ssize_t recv(int socket, void *buffer, size_t length, int flags){
 #endif
 #if defined(_POSIX_SEMAPHORES) && (_POSIX_SEMAPHORES > 0)
 /* SEM _POSIX_SEMAPHORES (Semaphores) */
-/* POSIX_SEMAPHORES: Semaphores
+/*! \defgroup POSIX_SEMAPHORES POSIX: Semaphores (SEM)
 sem_close( ), sem_destroy( ), sem_getvalue( ), sem_init( ), sem_open( ), sem_post( ),
 sem_timedwait( ), sem_trywait( ), sem_unlink( ), sem_wait( )
- */
+
+ \{ */
 struct _sem {
 	volatile int count;
 };
@@ -377,9 +377,46 @@ int  sem_wait(sem_t * sem){
 	if (count >0) return 0;
 	return osEventWait(osEventSemaphore, (uint32_t)&sem->count, osWaitForever);
 }
+#if defined(_POSIX_THREAD_PROCESS_SHARED) && (_POSIX_THREAD_PROCESS_SHARED > 0)
+#include <stdarg.h>
+#include <fcntl.h>
+int sem_close(sem_t* sem) {
+	Device_t *dev = (Device_t *)sem -1;
+	dtree_unref(dev);// уменьшает nlink
+	return 0;
+}
+int sem_unlink(const char* path) {
+	Device_t *dev = dtree_path(NULL, path, &path);
+	if (dev==NULL || path!=NULL) return -1;
+	dtree_unref(dev);
+	return 0;
+}
+sem_t* sem_open(const char* path, int oflags, ...)
+{
+//	sem_t *sem = shared_object_open(path, oflags, DEV_SEM);// рождается заблокированным и незримым
+	const char* name;
+	Device_t *dev = dtree_path(NULL, path, &name);// рождается заблокированным и незримым
+	if (dev ==NULL) return NULL; 
+	if (name!=NULL && (oflags & (O_CREAT))) {
+		va_list  ap;
+		va_start(ap, oflags);
+		mode_t mode = va_arg(ap, int);//mode_t);
+		uint32_t value = va_arg(ap, uint32_t);
+		va_end(ap);
+		dev = dtree_mknodat(dev, name, mode, DEV_SEM);
+		sem_t *sem = (sem_t*)(dev+1);
+		sem_init(sem, 1, value);
+	}
+	return (sem_t*)(dev+1);
+}
+#endif
+ //!\}
 #endif
 #if defined(_POSIX_SPIN_LOCKS) && (_POSIX_SPIN_LOCKS > 0)
 /* SPI _POSIX_SPIN_LOCKS (Spin Locks) */
+/*! \defgroup POSIX_SPIN_LOCKS POSIX: Spin Locks 
+	\ingroup _posix
+	\{ */
 typedef struct _lock pthread_spinlock_t;
 struct _lock {
 	volatile int count;
@@ -409,9 +446,12 @@ int   pthread_spin_unlock(pthread_spinlock_t *lock) {
 #endif
 	return 0;
 }
+//! \}
 #endif
 #if defined(_POSIX_READER_WRITER_LOCKS)   && (_POSIX_READER_WRITER_LOCKS   > 0)
-
+/*! \defgroup POSIX_READER_WRITER_LOCKS POSIX: Reader Writer Locks 
+	\ingroup _posix
+	\{ */
 /*! Для получения доступа на чтение или запись используется один счетчик числа блокировок.
 	Единая переменная позволяет выполнить операции атомарно. 
 	Блокировка возникает при обращении на чтение ReadLock.  
@@ -491,9 +531,12 @@ int pthread_rwlock_unlock(pthread_rwlock_t *rwlock)
 	}while(!atomic_int_compare_and_exchange(ptr, count, count==0?1:count+2));
 	return 0;
 }
+	//! \}
 #endif
 #if defined(_POSIX_BARRIERS)   && (_POSIX_BARRIERS   > 0)
-/* BAR _POSIX_BARRIERS (Barriers) */
+/*! \defgroup POSIX_BARRIERS POSIX: Barriers (BAR) 
+	\ingroup _posix
+	\{ */
 /*! 
 Синхронизация множества тредов с использованием барьеров исполнения
 Мы используем счетчик ресурсов, когда он достигает заданного числа, 
@@ -529,4 +572,5 @@ int   pthread_barrier_wait(pthread_barrier_t *barrier)
 	count = atomic_fetch_sub(&barrier->count,1);// уменьшили
 	return count==1?PTHREAD_BARRIER_SERIAL_THREAD:0;
 }
+	//!\}
 #endif

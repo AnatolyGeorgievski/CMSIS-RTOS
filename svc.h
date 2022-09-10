@@ -1,5 +1,6 @@
 #ifndef SVC_H
 #define SVC_H
+#include "board.h"
 
 enum {
 	SVC_YIELD=0,

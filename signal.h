@@ -51,6 +51,8 @@ extern const int __aeabi_SIGTERM;// = 15;
 #define RTSIG_MAX (SIGRTMAX-SIGRTMIN+1)
 #define NSIG 32
 
+#define _POSIX_SIGQUEUE_MAX 32
+
 union sigval {
 	int    sival_int;   //!< Integer signal value. 
 	void  *sival_ptr;   //!< Pointer signal value. 
@@ -62,8 +64,8 @@ union sigval {
 #define SI_ASYNCIO 4    /* Indicates completion of asycnhronous IO */
 #define SI_MESGQ   5    /* Indicates arrival of a message at an empty queue */
 typedef struct {
-	int          si_signo;    /* Signal number */
 	int          si_code;     /* Cause of the signal */
+	int          si_signo;    /* Signal number */
 	union sigval si_value;    /* Signal value */
 } siginfo_t;
 // таймерная функция использует структуру sigevent при создании таймера

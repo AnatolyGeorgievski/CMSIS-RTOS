@@ -27,18 +27,38 @@ POLLNVAL
 
  */
 #include <sys/types.h>// sigset_t 
-#define POLLIN 	1
-#define POLLOUT	2
-#define POLLERR	4
+#define POLLIN 		1
+/*!< Data other than high-priority data may be read without blocking. */
+#define POLLRDNORM 	1
+/*!< POLLRDNORM Normal data may be read without blocking. */
+#define POLLRDBAND 	2
+/*!< POLLRDBAND Priority data may be read without blocking. */
+#define POLLPRI 	4
+/*!< POLLPRI High-priority data may be read without blocking. */
+#define POLLOUT		2//!< Normal data may be written without blocking
+#define POLLWRNORM 	2//!< Equivalent to POLLOUT.
+#define POLLWRBAND 	2//!< Priority data may be written.
+#define POLLERR		4
+/*!< An error has occurred on the device or stream. This flag is only valid in the
+revents bitmask; it shall be ignored in the events member. */
+#define POLLHUP		4
+/*!< A device has been disconnected, or a pipe or FIFO has been closed by the last
+process that had it open for writing. */
+#define POLLNVAL 	8/*!< The specified fd value is invalid. */
+
+/*! 
+Есть два ограничения 20 дескрипторов и 8 потоков надо уложить в счетное количество бит.
+ */
 struct pollfd {
-	int    fd;       // The following descriptor being polled. 
-	short  events;   // The input event flags (see below). 
-	short  revents;  // The output event flags (see below). 
+	unsigned short  fd	   :8;   // The following descriptor being polled. 
+	unsigned short  events :3;   // The input event flags (see below). 
+	unsigned short  revents:5;   // The output event flags (see below). 
 };
 
 typedef unsigned int nfds_t;
 int poll(struct pollfd *, nfds_t, int);
-int ppoll(struct pollfd *fds, nfds_t nfds,
-    const struct timespec *tmo_p, const sigset_t *sigmask);
 
+/* int ppoll(struct pollfd *fds, nfds_t nfds,
+    const struct timespec *tmo_p, const sigset_t *sigmask);
+*/
 #endif // _SYS_POLL_H_

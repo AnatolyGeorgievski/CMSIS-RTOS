@@ -42,7 +42,9 @@ static inline void* atomic_list_pop(volatile void** top)
 	return ref;
 }
 
-
+/*! \ingroup _rtos2
+	\defgroup _memory_pool2 RTOSv2: Memory Pool Management Functions 
+	\{ */
 osMemoryPoolId_t osMemoryPoolNew 	(uint32_t  	block_count, uint32_t  	block_size,	const osMemoryPoolAttr_t * attr)
 {
 
@@ -117,3 +119,4 @@ osStatus_t osMemoryPoolDelete 	( 	osMemoryPoolId_t  	mp_id	) 	{
 	
 	return 0;
 }
+	//!\}

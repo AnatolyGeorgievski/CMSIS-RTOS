@@ -1,13 +1,16 @@
-/*! \ingroup _system
-	\defgroup _tss_ C11 Thread-specific storage functions
+/*!	\defgroup _tss_ C11 Thread-specific storage functions
+	\ingroup _system _libc
 	\brief Thread-specific storage functions 
 	
 	\{
  */
 
 #include <threads.h>
-#include "thread.h"
+#include <sys/thread.h>
 #include "r3_slice.h"
+typedef struct _thread osThread_t;
+#define THREAD_PTR(x) ((osThread_t*)(x))
+
 struct os_tss {
 	void* value;
 	tss_dtor_t dtor;
@@ -22,8 +25,9 @@ int   tss_create(tss_t *key, tss_dtor_t dtor)
 	tss->value= NULL;
 	tss->dtor = dtor;
 	thrd_t thr= thrd_current();
-	tss->next = thr->tss;
-	thr->tss = tss;
+	osThread_t* thrd = THREAD_PTR(thr);
+	tss->next = thrd->tss;
+	thrd->tss = tss;
 	*key = tss;
 	return thrd_success;
 }

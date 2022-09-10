@@ -91,12 +91,12 @@ int  thrd_detach(thrd_t thr){
 int  thrd_join(thrd_t thr, int *res){
 	osThread_t* thrd = THREAD_PTR(thr);
 	osThread_t* self = THREAD_PTR(thrd_current());
-	thrd->sig_no = atomic_sig_alloc(&self->sig_mask);
+	thrd->sig_no = atomic_sig_alloc(&self->process.sig_mask);
 	thrd->parent = self;
 	atomic_mb();// fence
 	if(thrd->process.event.status!=osEventComplete) {
 		svc3(SVC_EVENT_WAIT, osEventSignal, 1UL<<thrd->sig_no, osWaitForever);
-		atomic_sig_free(&self->sig_mask, thrd->sig_no);
+		atomic_sig_free(&self->process.sig_mask, thrd->sig_no);
 	}
 	*res = (uintptr_t)thrd->process.result;
 //	free(thrd); -- оставляем возможность использовать повторно?

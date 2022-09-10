@@ -279,6 +279,19 @@ static inline  int atomic_fetch_or(volatile int* ptr, unsigned int mask)
 }
 /*! \brief атомарно чистить биты по маске
     \param [in] ptr указатель на атомарную переменную
+    \param [in] mask маска, 0 - биты, которые надо оставить без изменения, 1 - биты надо очистить
+    \return значение переменной до выполнения операции
+ */
+static inline int atomic_fetch_nand(volatile  int* ptr, unsigned int mask)
+{
+	int value;
+	do {
+		value = atomic_int_get(ptr);
+	} while(!atomic_int_compare_and_exchange(ptr,value,value & ~mask));
+	return value;
+}
+/*! \brief атомарно чистить биты по маске
+    \param [in] ptr указатель на атомарную переменную
     \param [in] mask маска, 1 - биты, которые надо оставить без изменения, 0 - биты надо очистить
     \return значение переменной до выполнения операции
  */

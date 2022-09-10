@@ -25,6 +25,12 @@ struct _osMessageQueue {
 	const char * name;
 //    uint16_t block_size;
 };
+
+/*! \defgroup _messages2 RTOSv2: Message Queue
+	\ingroup _rtos2 
+ 	\brief Exchange messages between threads in a FIFO-like operation. 
+	\{
+*/
 /*
 	\param [in]	msg_count	maximum number of messages in queue.
 	\param [in]	msg_size	maximum message size in bytes.
@@ -127,3 +133,4 @@ osStatus_t 	osMessageQueuePut 	( 	osMessageQueueId_t  	mq_id,
 		res = osErrorTimeout;
 	return res;
 }
+	//!\}

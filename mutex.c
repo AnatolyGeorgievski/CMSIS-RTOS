@@ -7,18 +7,16 @@
 #define likely(x)       __builtin_expect((x),1)
 #define unlikely(x)     __builtin_expect((x),0)
 
-/*! \ingroup _system
-    \defgroup _mutex Mutex management
-
-    Мьютексы -- это семафоры с счетчиком 1, бинарные семафоры.
-    \{
-    */
 /// приватное определение мьютекса
 struct os_mutex_cb {
     volatile int count; //!< счетчик семафора, начальное значение счетчика \b 1
     //osThreadId owner;
 };
-
+/*!	\defgroup _mutex RTOS: Mutex management
+	\ingroup _rtos
+    Мьютексы -- это семафоры с счетчиком 1, бинарные семафоры.
+    \{
+    */
 /*! \brief создать мьютекс
 
     \param mutex_def статическое определение мьютекса \ref osMutexDef

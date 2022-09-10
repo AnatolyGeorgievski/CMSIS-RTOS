@@ -58,6 +58,30 @@ static inline void* timer_next(volatile void** ptr){
 	atomic_mb();
 	return item;
 }
+#define M1 1000000UL
+static inline uint32_t _timespec_to_us(const struct timespec * ts)
+{
+	return ts->tv_sec*M1 + ts->tv_nsec/1000;
+}
+static inline void _timespec_from_us(struct timespec * ts, uint32_t interval)
+{
+	if (interval < M1)// CLOCKS_PER_SEC
+		ts->tv_sec  = 0;
+	else {
+		ts->tv_sec  = interval/M1;
+		interval -= ts->tv_sec*M1;
+	}
+	ts->tv_nsec = interval*M1;
+}
+
+
+/*! \defgroup POSIX_TIMERS POSIX: Timers 
+	\ingroup _posix
+	
+clock_getres( ), clock_gettime( ), clock_settime( ), nanosleep( ), timer_create( ), timer_delete( ),
+timer_getoverrun( ), timer_gettime( ), timer_settime( )
+	\{
+ */
 int  timer_create (clockid_t clock_id, struct sigevent *restrict event, timer_t *restrict timer_id)
 {
 	Timer_t *tim = NULL;
@@ -80,21 +104,6 @@ int  timer_delete (timer_t timer_id){
 int  timer_getoverrun(timer_t timer_id){
 	Timer_t * tim = TIMER_PTR(timer_id);
 	return tim->overrun;
-}
-#define M1 1000000UL
-static inline uint32_t _timespec_to_us(const struct timespec * ts)
-{
-	return ts->tv_sec*M1 + ts->tv_nsec/1000;
-}
-static inline void _timespec_from_us(struct timespec * ts, uint32_t interval)
-{
-	if (interval < M1)// CLOCKS_PER_SEC
-		ts->tv_sec  = 0;
-	else {
-		ts->tv_sec  = interval/M1;
-		interval -= ts->tv_sec*M1;
-	}
-	ts->tv_nsec = interval*M1;
 }
 /*! 
 Вызов timer_gettime() возвращает время до следующего срабатывания таймера timerid и интервал в буфер curr_value. Оставшееся время до следующего срабатывания возвращается в curr_value->it_value; это всегда относительное значение, независимо от того, указывался ли флаг TIMER_ABSTIME при включении таймера. Если значение curr_value->it_value равно нулю, то таймер в данный момент выключен. Интервал таймера возвращается в curr_value->it_interval. Если значение curr_value->it_interval равно нулю, то это «одноразовый» таймер. 
@@ -132,6 +141,7 @@ int  timer_settime(timer_t timer_id, int flags, const struct itimerspec *restric
 	}
 	return 0;
 }
+//!\}
 /*! \brief системная функция, запускается по системному таймеру 
 	\param timestamp - абсолютное время выражено в микросекундах получено из TIME_MONOTONIC
 \todo унифицировать функцию osTimerWork
