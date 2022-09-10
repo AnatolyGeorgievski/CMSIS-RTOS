@@ -3,6 +3,7 @@
 #include <sys/_types.h>
 typedef void* timer_t;// POSIX Timer
 
+<<<<<<< HEAD
 typedef unsigned short int gid_t;
 typedef unsigned short int uid_t;
 // Мы используем уникальный идентификатор объекта OID (dev_t:10 | ino_t:22)
@@ -14,4 +15,15 @@ typedef int blksize_t;// размер блока на устройстве
 typedef int blkcnt_t;// число блоков занятых объектом
 typedef struct _fpos fpos_t;// сохраняет контекст для IO stream, включая разбор utf8 mbstate_t
 typedef struct _mbstate mbstate_t;
+=======
+typedef short int gid_t;
+typedef short int uid_t;
+// Мы используем уникальный идентификатор объекта OID (dev_t:10 | ino_t:22)
+typedef short int dev_t;// идентификатор типа(класса) устройства
+typedef   int ino_t;// идентификатор порядковый номер объекта 
+typedef short int mode_t;
+typedef volatile int nlink_t;// число ссылок на объект
+typedef int blksize_t;// размер блока на устройстве
+typedef int blkcnt_t;// число блоков занятых объектом
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 #endif

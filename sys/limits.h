@@ -1,5 +1,6 @@
 #ifndef _SYS_LIMITS_H_
 #define _SYS_LIMITS_H_
+<<<<<<< HEAD
 //Pathname Variable Values
 /* The values in the following list may be constants within an implementation or may vary from
 one pathname to another. For example, file systems or directories may have different
@@ -61,6 +62,8 @@ Minimum Acceptable Value: {_POSIX_SYMLINK_MAX}
 #define SYMLINK_MAX _POSIX_SYMLINK_MAX
 
 
+=======
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 /* 	A conforming implementation shall provide values no larger than these values. 
 	A conforming application must not require a smaller value for correct operation. */
 #define _POSIX_CLOCKRES_MIN 20000000 /* 20 мс */ 
@@ -87,9 +90,14 @@ gethostname( ) function.
 Value: 255
 {_POSIX_LINK_MAX}
 Maximum number of links to a single file.
+<<<<<<< HEAD
 Value: 8 */
 #define _POSIX_LINK_MAX 8
 /* {_POSIX_LOGIN_NAME_MAX}
+=======
+Value: 8
+{_POSIX_LOGIN_NAME_MAX}
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 The size of the storage required for a login name, in bytes (including the terminating null).
 Value: 9
 {_POSIX_MAX_CANON}
@@ -107,14 +115,20 @@ Value: 32
 {_POSIX_NAME_MAX}
 Maximum number of bytes in a filename (not including the terminating null of a filename
 string).
+<<<<<<< HEAD
 Value: 14 */
 #define _POSIX_NAME_MAX 14
 /* {_POSIX_NGROUPS_MAX}
+=======
+Value: 14
+{_POSIX_NGROUPS_MAX}
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 Maximum number of simultaneous supplementary group IDs per process.
 Value: 8
 {_POSIX_OPEN_MAX}
 A value one greater than the maximum value that the system may assign to a newly-created
 file descriptor.
+<<<<<<< HEAD
 Value: 20*/
 #define _POSIX_OPEN_MAX 20
 /*{_POSIX_PATH_MAX}
@@ -126,17 +140,36 @@ Value: 256 */
 Maximum number of bytes that is guaranteed to be atomic when writing to a pipe.
 Value: 512 */
 /* {_POSIX_RE_DUP_MAX}
+=======
+Value: 20
+{_POSIX_PATH_MAX}
+Minimum number the implementation will accept as the maximum number of bytes in a
+pathname.
+Value: 256
+{_POSIX_PIPE_BUF}
+Maximum number of bytes that is guaranteed to be atomic when writing to a pipe.
+Value: 512
+{_POSIX_RE_DUP_MAX}
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 Maximum number of repeated occurrences of a BRE or ERE interval expression; see Section
 9.3.6 (on page 186) and Section 9.4.6 (on page 190).
 Value: 255
 {_POSIX_RTSIG_MAX}
 The number of realtime signal numbers reserved for application use.
+<<<<<<< HEAD
 Value: 8 */
 #define _POSIX_RTSIG_MAX 8
 /* {_POSIX_SEM_NSEMS_MAX}
 The number of semaphores that a process may have.
 Value: 256 */
 /*{_POSIX_SEM_VALUE_MAX}
+=======
+Value: 8
+{_POSIX_SEM_NSEMS_MAX}
+The number of semaphores that a process may have.
+Value: 256
+{_POSIX_SEM_VALUE_MAX}
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 The maximum value a semaphore may have.
 Value: 32 767
 {_POSIX_SIGQUEUE_MAX}
@@ -153,6 +186,11 @@ particular sporadic server scheduler.
 Value: 4
 {_POSIX_STREAM_MAX}
 The number of streams that one process can have open at one time.
+<<<<<<< HEAD
 Value: 8 */
 #define _POSIX_STREAM_MAX 8
+=======
+Value: 8
+*/
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 #endif//_SYS_LIMITS_H_

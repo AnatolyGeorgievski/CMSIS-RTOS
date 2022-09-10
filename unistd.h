@@ -1,5 +1,6 @@
 #ifndef _UNISTD_H_
 #define _UNISTD_H_
+<<<<<<< HEAD
 /* Inclusion of the <unistd.h> header may make visible all symbols from the headers <stddef.h>,
 <stdint.h>, and <stdio.h>. */
 #include <stdint.h>
@@ -23,6 +24,13 @@ POSIX определяет набор профилей поддерживаем�
 #define _POSIX_FILE_ATTRIBUTES					1
 #define _POSIX_FILE_ATTRIBUTES_FD				1
 #define _POSIX_FD_MGMT							1
+=======
+#include <sys/types.h>
+#include <errno.h>
+
+#define _POSIX_VERSION							200809L
+
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 // [POSIX] D.3.4 Configuration Options (System Interfaces)
 // unistd.h  standard symbolic constants and types 
 //  −1, the option is not supported for compilation −1, 0, or 200809L.
@@ -74,6 +82,7 @@ POSIX определяет набор профилей поддерживаем�
 #define _POSIX_TRACE_INHERIT                     	-1
 #define _POSIX_TRACE_LOG                         	-1
 #define _POSIX_TYPED_MEMORY_OBJECTS              	-1
+<<<<<<< HEAD
 //! \}
 // Execution-Time Symbolic Constants:
 /*! All of the following values, whether defined as symbolic constants in <unistd.h> or not, may be
@@ -103,6 +112,33 @@ typedef struct {
   unsigned int inheritsched	:1;
   unsigned int schedpolicy	:2;
 //  void *stackaddr;
+=======
+
+#define _POSIX_TIMESTAMP_RESOLUTION 1
+	//!< The resolution in nanoseconds for all file timestamps
+
+
+typedef struct {
+#if 0
+  int is_initialized;
+  int contentionscope;
+  int inheritsched;
+  int schedpolicy;
+  struct sched_param schedparam;
+
+  /* P1003.4b/D8, p. 54 adds cputime_clock_allowed attribute.  */
+#if defined(_POSIX_THREAD_CPUTIME)
+  int  cputime_clock_allowed;  /* see time.h */
+#endif
+#endif
+#if defined(_POSIX_THREAD_ATTR_STACKADDR) && (_POSIX_THREAD_ATTR_STACKADDR>0)
+  void *stackaddr;
+#endif
+#if defined(_POSIX_THREAD_ATTR_STACKSIZE) && (_POSIX_THREAD_ATTR_STACKSIZE>0)
+  int stacksize;
+#endif
+  int  detachstate;
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 } pthread_attr_t;
 #if defined(_POSIX_THREAD_PROCESS_SHARED)
 #define PTHREAD_PROCESS_SHARED  1/* visible too all processes with access to */
@@ -117,6 +153,19 @@ typedef struct {
 #endif
 
 
+<<<<<<< HEAD
+
+#define STDERR_FILENO 	2//!< File number of stderr; 2.
+#define STDIN_FILENO 	0//!< File number of stdin;  0.
+#define STDOUT_FILENO 	1//!< File number of stdout; 1.
+=======
+#define _POSIX_ASYNC_IO
+//!< Asynchronous input or output operations may be performed for the associated file.
+#define _POSIX_PRIO_IO
+//!< Prioritized input or output operations may be performed for the associated file.
+#define _POSIX_SYNC_IO
+//!< Synchronized input or output operations may be performed for the associated file
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 
 #define STDERR_FILENO 	2//!< File number of stderr; 2.
 #define STDIN_FILENO 	0//!< File number of stdin;  0.
@@ -142,6 +191,10 @@ typedef struct {
 /*
  *  sysconf values per IEEE Std 1003.1, 2008 Edition
  */
+<<<<<<< HEAD
+=======
+
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 #define _SC_ARG_MAX                       0
 #define _SC_CHILD_MAX                     1
 #define _SC_CLK_TCK                       2
@@ -297,6 +350,7 @@ typedef struct {
 #define _SC_LEVEL4_CACHE_ASSOC          138
 #define _SC_LEVEL4_CACHE_LINESIZE       139
 #define _SC_POSIX_26_VERSION            140
+<<<<<<< HEAD
 
 /*
  *  pathconf values per IEEE Std 1003.1, 2008 Edition
@@ -323,13 +377,18 @@ typedef struct {
 #define _PC_REC_XFER_ALIGN               19
 #define _PC_TIMESTAMP_RESOLUTION         20
 
+=======
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 
 int execve(const char *path, char *const argv[], char *const envp[]);
 // предполагаем загрузку утилиты с носителя методом mmap
 int fexecve(int fd, char *const argv[], char *const envp[]);
 
 int access(const char *, int);
+<<<<<<< HEAD
 int faccessat(int, const char *, int, int);
+=======
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 unsigned alarm(unsigned);
 int chdir(const char *);
 int chown(const char *, uid_t, gid_t);
@@ -339,6 +398,7 @@ int fchdir(int);
 int fchown(int, uid_t, gid_t);
 int fdatasync(int);
 long fpathconf(int, int);
+<<<<<<< HEAD
 /* SIO */
 int fsync(int);
 /* SIO */
@@ -378,4 +438,19 @@ extern char **environ;
 extern char *optarg;
 extern int opterr, optind, optopt;
 
+=======
+int fsync(int);
+int ftruncate(int, off_t);
+char *getcwd(char *, size_t);
+long pathconf(const char *, int);
+int pause(void);
+int pipe(int [2]);
+ssize_t pwrite(int, const void *, size_t, off_t);
+ssize_t pread(int fildes, void *buf, size_t nbyte, off_t offset);
+ssize_t read(int fildes, void *buf, size_t nbyte);
+off_t lseek(int fildes, off_t offset, int whence);
+int unlink(const char *);
+ssize_t write(int, const void *, size_t);
+
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 #endif//_UNISTD_H_

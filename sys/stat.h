@@ -87,6 +87,14 @@ values st_ctim.tv_sec and st_mtim.tv_sec, respectively. */
 #define S_IWRITE        0000200 /* write permission, owner */
 #define S_IEXEC         0000100 /* execute/search permission, owner */
 
+<<<<<<< HEAD
+=======
+
+#define S_IRWXU         (S_IRUSR | S_IWUSR | S_IXUSR)
+#define S_IRWXG         (S_IRGRP | S_IWGRP | S_IXGRP)
+#define S_IRWXO         (S_IROTH | S_IWOTH | S_IXOTH)
+
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 #define S_ISBLK(m)      (((m)&_IFMT) == _IFBLK)
 #define S_ISCHR(m)      (((m)&_IFMT) == _IFCHR)
 #define S_ISDIR(m)      (((m)&_IFMT) == _IFDIR)
@@ -105,6 +113,7 @@ values st_ctim.tv_sec and st_mtim.tv_sec, respectively. */
 #define UTIME_NOW       -2L
 #define UTIME_OMIT      -1L
 
+<<<<<<< HEAD
 int      stat  (const char *restrict __path, struct stat *restrict __sbuf );
 int     fstat  (int __fd, struct stat *__sbuf );
 int 	fstatat(int, const char *restrict, struct stat *restrict, int);
@@ -119,4 +128,16 @@ int 	mkfifoat(int, const char *, mode_t);
 mode_t  umask (mode_t __mask );
 int     futimens (int __fd, const struct timespec times[2]);
 int 	 utimensat(int fd, const char *path, const struct timespec times[2], int flag);
+=======
+int     fstat (int __fd, struct stat *__sbuf );
+int     fchmod(int __fd, mode_t __mode);
+int     chmod (const char *__path, mode_t __mode );
+int     mknod (const char *__path, mode_t __mode, dev_t __dev );
+int     mkdir (const char *__path, mode_t __mode );
+int     mkfifo(const char *__path, mode_t __mode );
+int     stat  (const char *restrict __path, struct stat *restrict __sbuf );
+int     lstat (const char *restrict __path, struct stat *restrict __buf );
+mode_t  umask (mode_t __mask );
+int     futimens (int __fd, const struct timespec *);
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 #endif//_SYS_STAT_H_

@@ -51,17 +51,22 @@
 
 - **POSIX_THREADS_BASE**: Base Threads
 ```diff
-- pthread_atfork( ), pthread_attr_destroy( ), pthread_attr_getdetachstate( ),
-- pthread_attr_getschedparam( ), pthread_attr_init( ), pthread_attr_setdetachstate( ),
-- pthread_attr_setschedparam( ), pthread_cancel( ), pthread_cleanup_pop( ), pthread_cleanup_push( ),
+- pthread_atfork( ), 
++ pthread_attr_destroy( ), pthread_attr_getdetachstate( ), pthread_attr_getschedparam( ), 
++ pthread_attr_init( ), pthread_attr_setdetachstate( ), pthread_attr_setschedparam( ), 
+- pthread_cancel( ), pthread_cleanup_pop( ), pthread_cleanup_push( ),
 + pthread_cond_broadcast( ), pthread_cond_destroy( ), pthread_cond_init( ), pthread_cond_signal( ),
 + pthread_cond_timedwait( ), pthread_cond_wait( ), 
-- pthread_condattr_destroy( ), pthread_condattr_init( ), 
+  pthread_condattr_destroy( ), pthread_condattr_init( ), 
 + pthread_create( ), pthread_detach( ), pthread_equal( ), pthread_exit( ), pthread_join( ), 
 + pthread_getspecific( ), pthread_setspecific( ), thread_key_create( ), pthread_key_delete( ),
 + pthread_mutex_destroy( ), pthread_mutex_init( ), pthread_mutex_lock( ),
 + pthread_mutex_timedlock( ), pthread_mutex_trylock( ), pthread_mutex_unlock( ),
+<<<<<<< HEAD
 - pthread_mutexattr_destroy( ), pthread_mutexattr_init( ), 
+=======
+  pthread_mutexattr_destroy( ), pthread_mutexattr_init( ), 
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 + pthread_once( ), pthread_self( ), pthread_kill( ), pthread_sigmask( ),
 - pthread_setcancelstate( ), pthread_setcanceltype( ), pthread_testcancel( )
 ```
@@ -106,7 +111,7 @@
 - **POSIX_BARRIERS**: Barriers
 ```diff
 + pthread_barrier_destroy( ), pthread_barrier_init( ), pthread_barrier_wait( ), 
-- pthread_barrierattr( )
+  pthread_barrierattr( )
 ```
 
 - **POSIX_DYNAMIC_LINKING**: Dynamic Linking
@@ -152,7 +157,11 @@ sockatmark( ), socketpair( )
 ```diff
 + access( ), chdir( ), closedir( ), creat( ), fchdir( ), fpathconf( ), fstat( ), link( ),
 + mkdir( ), mkstemp( ), opendir( ), pathconf( ), remove( ), rename( ), rmdir( ),
+<<<<<<< HEAD
 + stat( ), tmpfile( ), runcate( ), unlink(), 
+=======
++ stat( ), tmpfile( ), truncate( ), unlink(), 
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 - fstatvfs( ), getcwd( ), readdir( ), rewinddir( ), statvfs( ), tmpnam( ), utime( )
 ```
 
@@ -189,7 +198,11 @@ mprotect( )
 - **POSIX_SINGLE_PROCESS**: Single Process
 ```diff
 - confstr( ), setenv( ), unsetenv( ), 
+<<<<<<< HEAD
 + environ, errno, getenv( ), ysconf( ), uname( )
+=======
++ environ, errno, getenv( ), sysconf( ), uname( )
+>>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 ```
 
 [POSIX.1-2017] IEEE Std 1003.1tm -2017 (Revision of IEEE Std 1003.1-2008)
