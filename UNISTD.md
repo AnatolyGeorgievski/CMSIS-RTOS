@@ -127,9 +127,9 @@
 ```diff
 + FD_CLR( ), FD_ISSET( ), FD_SET( ), FD_ZERO( ), 
 + clearerr( ), close( ), open( ), read( ), write( )
-close( ), fdopen( ), feof( ),
-ferror( ), fflush( ), fgetc( ), fgets( ), fileno( ), 
-fopen( ), fprintf( ), fputc( ), fputs( ), fread( ), freopen( ),
+fdopen( ), feof( ), fflush( ), 
+ferror( ), fgetc( ), fgets( ), 
++ fopen( ), fprintf( ), fputc( ), fputs( ), fread( ), freopen( ), fileno( ), 
 fscanf( ), fwrite( ), getc( ), getchar( ), gets( ), perror( ), 
 + poll( ), printf( ), pread( ), pselect( ), putchar( ), puts( ), 
 putc( ), scanf( ), select( ), setbuf( ), setvbuf( ), stderr, stdin, stdout, 
@@ -165,8 +165,8 @@ sockatmark( ), socketpair( )
 ```
 - **POSIX_FILE_SYSTEM_FD**: File System File Descriptor Routines
 ```diff
-faccessat( ), fdopendir( ), fstatat( ), linkat( ), mkdirat( ), openat( ), 
-renameat( ), unlinkat( ), utimensat( )
++ faccessat( ), fdopendir( ), fstatat( ), linkat( ), mkdirat( ), openat( ), 
++ renameat( ), unlinkat( ), utimensat( )
 ```
 
 - **POSIX_FILE_ATTRIBUTES**: File Attributes
@@ -176,7 +176,7 @@ renameat( ), unlinkat( ), utimensat( )
 
 - **POSIX_FILE_ATTRIBUTES_FD**: File Attributes File Descriptor Routines
 ```diff
-fchmodat( ), fchownat( )
++ fchmodat( ), fchownat( )
 ```
 
 - **POSIX_MAPPED_FILES**: Memory Mapped Files
