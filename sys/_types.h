@@ -26,11 +26,4 @@ typedef struct
 } _mbstate_t;
 */
 typedef unsigned long useconds_t; // системное определение для функции usleep
-<<<<<<< HEAD
-=======
-typedef long _off_t;
-typedef _off_t off_t;		/* XXX must match off_t in <sys/types.h> */
-typedef long _fpos_t;       /* XXX must match fpos_t in <sys/types.h> */
-//typedef void* pid_t;
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 #endif

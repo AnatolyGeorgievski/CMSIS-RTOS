@@ -7,18 +7,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
-<<<<<<< HEAD
 
-=======
-#pragma GCC optimize("Os")
-
-//#include "trace.h"
-//#include "board.h"
-//#include "r3stdlib.h"
-//#include "math.h"
-//#include "r3rtos.h"
-//#include "module.h"
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 #if 0
 unsigned char * bin2hex(unsigned char *buffer, unsigned int word)
 {
