@@ -661,5 +661,19 @@ int   pthread_barrier_wait(pthread_barrier_t *barrier)
 	count = atomic_fetch_sub(&barrier->count,1);// уменьшили
 	return count==1?PTHREAD_BARRIER_SERIAL_THREAD:0;
 }
+int pthread_barrierattr_destroy(pthread_barrierattr_t *attr) {
+	return 0;
+}
+// TSH 
+int pthread_barrierattr_getpshared(const pthread_barrierattr_t *restrict attr, int *restrict pshared){
+	return 0;
+}
+int pthread_barrierattr_init(pthread_barrierattr_t *attr){
+	return 0;
+}
+// TSH 
+int pthread_barrierattr_setpshared(pthread_barrierattr_t *attr, int pshared){
+	return 0;
+}
 	//!\}
 #endif

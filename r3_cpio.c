@@ -1,6 +1,7 @@
 /*!
-	\defgroup _fs_init Начальная загрузка файловой системы. Пока загружается 
-	есть ощущение что это CPIO
+	\defgroup _fs_init Начальная загрузка файловой иерархии. Пока загружается 
+	есть ощущение что формат CPIO
+	
 
 	\subsection CPIO file format
      The cpio archive format collects any number of files, directories, and
@@ -101,7 +102,7 @@
      odd, an additional NUL byte is added after the pathname.  The file data
      is then appended, padded with NUL bytes to an even length.
 */
-	   struct header_old_cpio {
+	   struct header_odc_cpio {
 		   unsigned short   c_magic;
 		   unsigned short   c_dev;
 		   unsigned short   c_ino;
@@ -134,12 +135,16 @@ char c_filesize 11 Octal number
 #include <cpio.h>
 #include <sys/stdio.h>// Device_t, FILE, DIR...
 
+typedef struct _File File_t;
+
 #define ASN_CLASS_OPENING  0x6
 #define ASN_CLASS_CLOSING  0x7
+#define ASN_CLASS_CONTEXT  0x8
 
 #define ASN_MASK 		0xF8				//!< Маска типа
 #define LEN_MASK		0x07				//!< Кодирование длины
-#define ASN_CONTEXT(n) (((n)<<4)|0x08)		//!< Контекстно зависимый тип
+#define ASN_CONTEXT(n) (((n)<<4)|ASN_CLASS_CONTEXT)		//!< Контекстно зависимый тип
+#define ASN_CONTEXT_ID(n) ((n)>>4)		//!< Контекстно зависимый тип
 #define ASN_NULL		0x00				//!< Null или SKIP
 #define ASN_UINT		0x20				//!< Null или SKIP
 #define ASN_INT			0x30				//!< Число со знаком
@@ -154,16 +159,13 @@ char c_filesize 11 Octal number
 #define RFS_APPEND 		(ASN_CONTEXT(2)|ASN_CLASS_OPENING)
 #define RFS_HTABLE		(ASN_CONTEXT(2)|ASN_CLASS_OPENING)
 
-
-
-struct romfs {
-	uint32_t mode:8;
-	uint32_t uid:8;
-	uint32_t gid:8;
-	uint32_t slen:8;
-};
+#if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 #define BE32(x) __builtin_bswap32(x)
 #define BE16(x) __builtin_bswap16(x)
+#else
+#define BE32(x) (x)
+#define BE16(x) (x)
+#endif
 
 static uint8_t* rfs_decode_u32(uint8_t* data, int type, uint32_t * value){
 	*value = BE32(*(uint32_t*) data);
@@ -177,19 +179,91 @@ static inline
 int rfs_decode_tag(uint8_t * data, int type){
 	return ((data[0] & ASN_MASK)==type);
 }
-static uint8_t* rfs_decode_slen(uint8_t * data, int type, size_t * slen){
-	//if ((data[0] & ASN_MASK)==type) 
-	{
-		uint32_t len = *data++ & LEN_MASK;
-		if (len == 0x5) {
-			len += *data++; // 255+5
-			if (len>256){// можно кодировать любые длины... но нас интересуют только строки длиной до 256 байт
-			}
+static inline uint8_t* _memmove_x64(uint8_t* dst, size_t off, size_t mlen)
+{
+    int i;
+    for(i=0; i<(mlen); i++)
+        dst[i] = dst[i-off];
+	return dst+mlen;
+}
+// длины последовательностей обычно маленькие, этот вариант вероятно оптимальный
+static inline uint8_t* _memcpy_x64(uint8_t* dst, uint8_t* s, size_t mlen)
+{
+    int i;
+    if(1) {
+    for(i=0; i<(mlen>>3); i++) {
+        *(uint64_t*)dst = *(uint64_t*)s;
+        dst+=8, s+=8;
+    }
+    mlen&=7;
+    }
+    for(i=0; i<(mlen); i++)
+        *dst++ = *s++;
+	return dst;
+}
+static inline uint8_t* _memzero_x64(uint8_t* dst, size_t mlen)
+{
+    int i;
+    if(1) {
+		for(i=0; i<(mlen>>3); i++) {
+			*(uint64_t*)dst = 0;
+			dst+=8;
 		}
-		*slen= len;
+		mlen&=7;
+    }
+    for(i=0; i<(mlen); i++)
+        *dst++ = 0;
+	return dst;
+}
+static 
+uint8_t* rfs_decode_slen(uint32_t tag, uint8_t *data, size_t *slen)
+{
+    size_t len = tag & 7;
+    if (len > 4) {
+		int sz = 1<<(len-5);// число байт 1,2,4
+		len = *(size_t*)data, data+=sz;
+		len&= ~(~0UL <<(sz*8));// маска бит
+	}
+	*slen = len;
+	return data;
+}
+static 
+uint8_t* rfs_decode_uint(uint8_t *data, uint32_t tag, uint32_t *var, uint32_t default_value)
+{
+	switch (tag & 3) {
+	case 0:*var = *data++; break;
+	case 1:*var = *(uint16_t*)data, data+=2; break;
+	case 2:*var = *(uint32_t*)data, data+=4; break;// копирование без выравнивания
+	default:
+		*var = default_value; break;
 	}
 	return data;
 }
+/*! Метод кодирования в стиле LZ4 но формат кодирования своместимый с RFS
+ */
+static 
+uint8_t* lz4_decode(uint8_t* data, uint8_t* dst, off_t *slen)
+{
+	const uint8_t* base=dst;
+	size_t len, off;
+	uint8_t token;
+    while ((token=*data++)!=0xFF) {
+		data = rfs_decode_slen((token>>4), data, &len);
+		data = rfs_decode_slen((token>>0), data, &off);
+		if (token & 0x80) {
+			dst = _memcpy_x64(dst, data, len);// copy literal
+			data+=len;
+		} else {
+			if (off>0)
+				dst = _memmove_x64(dst, off, len);
+			else
+				dst = _memzero_x64(dst, len);// zero fill
+		}
+	}
+	*slen = (dst - base);
+	return data;
+}
+
 static uint8_t* rfs_decode_skip(uint8_t * data, int type, size_t * slen){
 	
 	//do {}while((type|ASN_CLASS_CLOSING)
@@ -198,14 +272,6 @@ static uint8_t* rfs_decode_skip(uint8_t * data, int type, size_t * slen){
 static inline 
 uint8_t* _align(uint8_t* data, int n){
 	return (uint8_t*)(((uintptr_t)data + ((1U<<n)-1)) & ~((1U<<n)-1));
-}
-__attribute__((noinline))
-static uint8_t* _decode_uint(uint8_t* data, uint32_t* value){
-	int len = *data++ & LEN_MASK;
-	unsigned long val = 0;
-	while (len--) val = (val<<8) | *data++;
-	*value = val;
-	return data;
 }
 
 void rfs_mountat(Device_t *dirp, Device_t* dev)
@@ -222,74 +288,284 @@ void rfs_mountat(Device_t *dirp, Device_t* dev)
 	size_t slen;
 	int xfer_align =4;
 	int xfer_mask = (1U<<xfer_align)-1;
-	uint8_t options;
-int _type(int type){
-	return (ASN_MASK & data[0]) == type;
-}
-int _option(int id){
-	return (options>>=1)&1;
-}
-void _decode_skip(){
-}
-uint8_t* _decode_path(){
-	uint8_t* path = data+1;
-	data+=(*(uint8_t*)data +1)<<xfer_align;
-	return path;
-}
-uint32_t _decode_uint(int type, uint32_t default_value){
-	uint32_t value = BE32(*(uint32_t*)data); data += 4;
-	return value;
-}
+	uint8_t token;
+
+
+	void _decode_skip(){
+	}
+	uint8_t* _decode_path(){
+		uint8_t* path = data+1;
+		data+=(*(uint8_t*)data +1)<<xfer_align;
+		return path;
+	}
+	uint32_t _decode_optional_uint(int type, uint32_t default_value){
+		if ((type & ASN_CLASS_CONTEXT)==0 || (token & (1<<ASN_CONTEXT_ID(type)))==0) 
+			return BE32(*(uint32_t*)data); data += 4;
+		return default_value;
+	}
+	uintptr_t _decode_optional_uintptr(int type, uintptr_t default_value){
+		if ((type & ASN_CLASS_CONTEXT)==0 || (token & (1<<ASN_CONTEXT_ID(type)))==0) 
+			return (*(uintptr_t*)data); data += 4;
+		return default_value;
+	}
+	uint32_t _decode_uint(int type, uint32_t default_value){
+		uint32_t value = BE32(*(uint32_t*)data); data += 4;
+		return value;
+	}
 /*! Правила упаковки:
+
 Данные выравниваются на 32 бита
 
-Если указана нулевая строка, то объект создается с уникальным именем, префиксом и номером 4 байта.
+Если указана нулевая строка, то объект создается с уникальным именем, префиксом и номером 0-4 байта.
 Если указан OID с полем ino=0 объекту назначается уникальный идентификатор. 
 
  */
-	while (*(uint32_t*)data != ~0UL){// CPIO_MAGIC
-		oid  = _decode_uint(ASN_OID, DEV_FIL);
+	while ((token=*data++) != 0xFF){// CPIO_MAGIC
+		oid  = _decode_optional_uint(ASN_CONTEXT(0), 0);
 		mode = _decode_uint(ASN_UINT, 0644);
-/*		uint8_t uid, gid;
-		if (mode & C_ISUID) uid  = mode>>16;
-		if (mode & C_ISGID) gid  = mode>>24; */
+//		uint8_t uid, gid;
 		path = _decode_path(ASN_STRING, NULL);
 		dev = dtree_path(dirp, path, &path);// AT_FOLLOW_SYMLINK
-		if (mode & C_ISVTX) {// дописывание файла ведет к удалению
-			dtree_unref(dev);
-			continue;
-		}
-		dev  = dtree_mknodat(dev, path, mode , oid);
+		dev = dtree_mknodat(dev, path, mode , oid);
 		if (dev==NULL) {
 			_decode_skip();
 			continue;
 		}
-		FILE* file = (FILE*)(dev +1);
-		switch (DEV_ID(dev)) {
-		case DEV_FIL:{
-			file->size = _decode_uint(ASN_UINT, 0);
-			ts.tv_sec  = _decode_uint(ASN_UINT, ts.tv_sec);
-			ts.tv_nsec = _decode_uint(ASN_UINT, ts.tv_nsec);
-			offset     = _decode_uint(ASN_UINT, 0);
-			file->mtim = ts;
-			if (offset)
-				file->phandle = base + (offset << xfer_align);
-			else
-				file->phandle = data;
-		} break;
-		case DEV_SHM: {
-			file->phandle= (void*)_decode_uint(ASN_UINT, 0);
-			file->size   = _decode_uint(ASN_UINT, 0);
-		} break;
-		case DEV_SEM: {
-			file->phandle= (void*)_decode_uint(ASN_UINT, 0);
-		} break;
-		case DEV_LNK: {
-			path = _decode_path(ASN_STRING, NULL);
-			file->phandle = dtree_path(dirp, path, &path);// AT_FOLLOW_SYMLINK
-		} break;
-		default: break;
+		File_t* file = (File_t*)(dev +1);
+//		if (mode & C_ISUID) file->uid  = mode>>16;
+//		if (mode & C_ISGID) file->gid  = mode>>24;
+		ts.tv_sec  = _decode_optional_uint(ASN_CONTEXT(2), ts.tv_sec);
+		ts.tv_nsec = _decode_optional_uint(ASN_CONTEXT(3), ts.tv_nsec);
+		file->size = _decode_optional_uint(ASN_CONTEXT(4), 0);
+		file->phandle= (void*)_decode_optional_uintptr(ASN_CONTEXT(5), 0);// физический адрес
+		if (file->phandle!=NULL) {
+			data = lz4_decode(data, file->phandle, &file->size);
+		} else {
+			file->phandle = _align(data,2);
+			data += file->size;
 		}
 	}
 }
-	
+#ifdef CPIO	
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <stdbool.h>
+#include <r3_args.h>
+#include <time.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct _CliOptions CliOptions;
+struct _CliOptions
+{
+    char* input_file;
+    char* output_file;
+    uint32_t page_size;
+    uint32_t segment_size;
+    uint32_t volume_size;
+    uint32_t volume_offset;
+    char* volume_label;
+    uint32_t bad_cluster;
+    bool verbose;
+    bool gigabytes;
+    bool megabytes;
+    bool kilobytes;
+    bool add;
+    bool setattr;
+    bool del;
+    bool delnode;
+    bool create;
+    bool extract;
+    bool regen;
+    bool test;
+    bool clean;
+    uint32_t crash;
+    struct {
+        bool readonly;
+        bool system;
+        bool hidden;
+        bool archive;
+        bool temporary; // создавать временные файлы
+    } attr;
+    bool fat;
+//    bool export;
+};
+struct _CliOptions  cli =
+{
+    .input_file = NULL,
+    .output_file = "test.img",
+    .page_size = 0,
+    .segment_size = 0,
+    .bad_cluster = (~0UL),
+    .volume_size = 1024,
+    .volume_offset = 0,
+    .volume_label = NULL,
+    .verbose = false,
+    .gigabytes= false,
+    .megabytes= false,
+    .kilobytes= false,
+    .setattr = false,
+    .add = false,
+    .del = false,
+    .delnode = false,
+    .create = false,
+    .extract = false,
+    .regen = false,
+    .test = false,
+    .crash= 0,
+    .clean= false,
+    .fat = false,
+//    .export = FALSE,
+};
+
+
+static GOptionEntry cli_entries[] =
+{
+//    { "input",  'i', 0, G_OPTION_ARG_FILENAME,  &cli.input_file, "input R3-FS image", "*.rfs" },
+    { "output", 'o', 0, G_OPTION_ARG_FILENAME,  &cli.output_file, "output filename", "test.img" },
+// геометрия носителя
+    { "page",     0, 0, G_OPTION_ARG_INT,       &cli.page_size,     "size of cluster 2^n", "2048"},
+    { "segment",  0, 0, G_OPTION_ARG_INT,       &cli.segment_size,  "size of segment 2^n", "2048"},
+    { "size",   's', 0, G_OPTION_ARG_INT,       &cli.volume_size,   "volume size in blocks(512) or k/M/GB", "1024"},
+    { "bad",      0, 0, G_OPTION_ARG_INT,       &cli.bad_cluster,   "mark bad clusters", "21"},
+// информация о томе
+    { "label",  'L', 0, G_OPTION_ARG_STRING,       &cli.volume_label,   "volume label"},
+// операции над файлами, применяться должен только один из ключей:
+    { "add",    'a', 0, G_OPTION_ARG_NONE, &cli.add,    "add file to archive"},
+    { "delete", 'd', 0, G_OPTION_ARG_NONE, &cli.del,    "remove file from image"},
+    { "delnode", 'D', 0, G_OPTION_ARG_NONE, &cli.delnode,    "remove file from image by inode"},
+    { "create", 'c', 0, G_OPTION_ARG_NONE, &cli.create, "create R3-FS image"},
+    { "extract",'e', 0, G_OPTION_ARG_NONE, &cli.extract,"extract files from image"},
+    { "regen",  'r', 0, G_OPTION_ARG_NONE, &cli.regen,  "regenerate r3-fs image"},
+    { "test",   't', 0, G_OPTION_ARG_NONE, &cli.test,   "test R3-FS image"},
+    { "crash",   0, 0, G_OPTION_ARG_INT, &cli.crash,   "crash test for R3-FS image"},
+    { "fat",    'f', 0, G_OPTION_ARG_NONE, &cli.fat,    "make FAT image"},
+    { "clean",    0, 0, G_OPTION_ARG_NONE, &cli.clean,    "clean R3-FS image"},
+//    { "export", 'x', 0, G_OPTION_ARG_NONE, &cli.export, "convert R3-FS image to FAT"},
+// аттрибуты файлов
+    { "attr",       0  , 0, G_OPTION_ARG_NONE, &cli.setattr,      "set attributes to file"},
+    { "readonly",   'R', 0, G_OPTION_ARG_NONE, &cli.attr.readonly,   "set file attribute READ_ONLY"},
+    { "system",     'S', 0, G_OPTION_ARG_NONE, &cli.attr.system,     "set file attribute SYSTEM"},
+    { "hidden",     'H', 0, G_OPTION_ARG_NONE, &cli.attr.hidden,     "set file attribute HIDDEN"},
+    { "archive",    'A', 0, G_OPTION_ARG_NONE, &cli.attr.archive,    "set file attribute ARCHIVE"},
+    { "tmp",        'T', 0, G_OPTION_ARG_NONE, &cli.attr.temporary,  "set file attribute TEMPORARY"},
+// размерность носителя, применяться должен только один из ключей:
+    { "GB", 'G',0, G_OPTION_ARG_NONE, &cli.gigabytes, "units = GB"},
+    { "MB", 'M',0, G_OPTION_ARG_NONE, &cli.megabytes, "units = MB"},
+    { "kB", 'K',0, G_OPTION_ARG_NONE, &cli.kilobytes, "units = kB"},
+    { NULL }
+};
+bool _file_get_contents(const char *restrict  filename, uint8_t** buffer, size_t * len, struct stat *st)
+{
+    if (!S_ISREG(st->st_mode)) return false;
+    if (st->st_size<=0) return false;
+//    if (mtime) *mtime = st->st_mtime;
+    /*
+    struct tm tv;
+    localtime_r(&st.st_mtime, &tv);
+    bacnet_localtime(file->modification_date, &tv);
+    */
+    FILE* fp = fopen(filename, "rb");
+    if (fp==NULL) return false;
+    uint8_t *buf = malloc(st->st_size);
+    if (buf==NULL) return false;
+    *len = fread(buf, 1, st->st_size, fp);
+    *buffer = buf;
+    fclose(fp);
+
+    return true;
+
+}
+//  gcc -DCPIO -Ir3core -o cpio r3core/r3_cpio.c r3core/r3_args.c r3core/r3_dtree.c r3core/r3_slice.c
+int main(int argc, char **argv)
+{
+        const uint32_t kB = 1024, MB = 1024*1024;//, GB = 1024*1024*1024; // размерности
+
+    GOptionContext *context;
+
+    context = g_option_context_new ("- R3-FS/FAT conversion");
+    g_option_context_add_main_entries (context, cli_entries,NULL/* GETTEXT_PACKAGE*/);
+//  g_option_context_add_group (context, gtk_get_option_group (TRUE));
+    if (!g_option_context_parse (context, &argc, &argv, NULL))
+    {
+        printf ("option parsing failed\n");
+        //exit (1);
+    }
+    if (cli.megabytes) cli.volume_size*= 2*kB; // в блоках 512
+    else if (cli.gigabytes) cli.volume_size*= 2*MB;
+    else if (cli.kilobytes) cli.volume_size*= 2;
+/*
+	uint32_t attr = 0; // аттрибуты файлов
+    if (cli.attr.hidden)    attr |= RFS_ATTR_HIDDEN;
+    if (cli.attr.system)    attr |= RFS_ATTR_SYSTEM;
+    if (cli.attr.archive)   attr |= RFS_ATTR_ARCHIVE;
+    if (cli.attr.temporary) attr |= RFS_ATTR_TEMPORARY;
+    if (cli.attr.readonly)  attr |= RFS_ATTR_READ_ONLY;
+	*/
+	FILE* media_fp = NULL;
+    if (cli.create)
+    { // создание образа rfs
+        printf("r3-fs create image\n");
+//        printf(" page size    = %d B\n", 1<<(media->page_size_log2+9));
+//        printf(" segment size = %d kB\n", 1<<(media->segment_size_log2-1));
+        FILE* media_fp = fopen(cli.output_file,"wb");
+        if (media_fp==NULL) return 1;
+        if (argc>1) {
+            printf("args list:\n");
+			struct tm tm;
+			char buf[512];
+            int i;
+            for (i=1; i< argc; i++) {
+                const char* filename = argv[i];
+                struct stat st;
+                time_t mtime;
+                uint8_t *buffer=NULL;
+                size_t len=0;
+				printf("filename\t: %s\n", filename);
+			    if (stat(filename, &st)) continue;
+				struct tm *t = localtime(&st.st_mtime);
+				strftime(buf,64, "%d−%m−%Y", t);
+				printf("file date\t: %s\n", buf);
+				printf("file ino,dev\t: {%d,%u}\n", st.st_ino, st.st_dev);
+				printf("file mode\t: %o\n", st.st_mode);
+				printf("file size\t: %u\n", (int)st.st_size);
+				printf("file uid,gid\t: %u,%u\n", st.st_uid,st.st_gid);
+				// Если ino не указан
+				// различие только в mode, заполняем dev_id на основе mode.
+				char* data = buf;
+				uint8_t token=0;
+				if (S_ISREG(st.st_mode)) token |= (1<<4);// size
+				*(uint8_t *)data = token |((1<<2)|(1<<4)); data+=1;//token ~oid, mode, mtime
+				*(uint16_t*)data = st.st_mode;  data+=2;
+				
+				len = strlen(filename)+1;
+				*data++ = len;// добавить выравнивание
+				memcpy(data, filename, len);
+				data+= len;
+				*(uint32_t*)data = st.st_mtime; data+=4;
+
+				fwrite(data, data- buf, 1, media_fp);
+				
+                if (S_ISREG(st.st_mode) && _file_get_contents(filename, &buffer, &len, &st)){
+					data = buf;
+					*(uint32_t*)data = len; data+=4;
+					fwrite(data, data- buf, 1, media_fp);
+
+						printf("file length\t: %u\n", len);
+						// struct tm *gmtime_r(const time_t *timer, struct tm *buf);
+					fwrite(buffer, len, 1, media_fp);
+				}
+			}
+		}
+    } else {
+        if (cli.input_file==NULL) cli.input_file = cli.output_file;
+        media_fp = fopen(cli.input_file,"rb");
+        if (media_fp==NULL) return 1;
+        printf("Expected volume size: %d\n", cli.volume_size);
+    }
+//	fflush(stdout);
+
+    if (media_fp!=NULL) fclose(media_fp);
+}
+#endif

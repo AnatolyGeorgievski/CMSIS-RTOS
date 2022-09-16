@@ -1,4 +1,9 @@
-/* POSIX_DEVICE_IO: Device Input and Output */
+/*! POSIX_DEVICE_IO: Device Input and Output 
+
+	Copyright (C) 2022 Anatoly Georgievskii <Anatoly.Georgievski@gmail.com>
+	
+	Реализация функций POSIX_DEVICE_IO для R3v2 RTOS
+*/
 #include <unistd.h>
 <<<<<<< HEAD
 #include <atomic.h>
@@ -34,6 +39,7 @@ static inline int  atomic_flag_alloc(uint32_t *flags){
 	} while(!atomic_int_compare_and_exchange(ptr, map, map | (1U<<fildes)));
 	return fildes;
 }
+// TODO избавиться от аргумента 
 int  device_flag_alloc(Device_t* data){
 	int fildes = atomic_flag_alloc(device_flags);
 	if (fildes>=0)
@@ -67,7 +73,7 @@ File Descriptor -- целое число, которое ассоциирова�
 * ino_t -- идентификатор объекта, вместе с dev_t образуют уникальный идентификатор объекта.
 * uid_t -- мы не планируем размножать пользователей, людей. Но мы планируем размножать Ботов, с различным уровнем доступа
 * gid_t -- идентификатор группы безопасности. 
-* mode  -- права доступа 9 бит. RWX.
+* mode  -- права доступа 9 бит. RWX. 
 * nlink -- число ссылок на объект, когда число ссылк снижается мньше нуля, объект удаляется из системы.
 
 Все системные объекты хранятся в системной директории. dtree_*
@@ -87,9 +93,20 @@ fscanf( ), fwrite( ), getc( ), getchar( ), gets( ), open( ), perror( ), poll( ),
 putc( ), putchar( ), puts( ), pwrite( ), read( ), scanf( ), select( ), setbuf( ), setvbuf( ), stderr, stdin,
 stdout, ungetc( ), vfprintf( ), vfscanf( ), vprintf( ), vscanf( ), write( ) 
  */
-
+int openat(int fd, const char *path, int oflag, ...)
+{
+	int fildes = atomic_flag_alloc(device_flags);
+	if (fildes<0) return fildes;
+	Device_t* dev = DEV_PTR(fd);
+	dev = dtree_path(dev, path, &path);
+	
+	return fildes;
+}
 int open (const char *path, int oflags, ...){
-	Device_t* dev = dtree_path(NULL, path, &path);
+	int fildes = atomic_flag_alloc(device_flags);
+	if (fildes<0) return fildes;
+	Device_t* dev = NULL;// = DEV_PTR(fd);
+	dev = dtree_path(dev, path, &path);
 	if (dev==NULL) return -1;
 	if (path!=NULL && (oflags & O_CREAT)) {
 		va_list ap;
@@ -99,22 +116,35 @@ int open (const char *path, int oflags, ...){
 		dev = dtree_mknodat(dev, path, mode, DEV_FIL);
 	}
 	if (dtree_nlink(dev)<0) return -1;
-	return device_flag_alloc(dev);
+	if (DEV_ID(dev)==DEV_FIL) {
+		struct _File * file = (struct _File *)(dev+1);
+		struct _OpenFileDescription *f = g_slice_alloc(sizeof(struct _OpenFileDescription));// open file description 
+		f->dev_id = DEV_FIL;
+		f->fildes = fildes;
+		f->offset = 0;
+		if (oflags & O_TRUNC ) f->offset = 0;// O_TRUNC
+		if (oflags & O_APPEND) f->offset = file->size;// O_TRUNC
+		f->file = file;
+		dev = (Device_t*)f;
+	}
+	DEV_PTR(fildes) = dev;
+	return fildes;
 }
-ssize_t read(int fildes, void *buf, size_t nbyte){
+ssize_t read	(int fildes, void *buf, size_t nbyte){
 	Device_t * dev = DEV_PTR(fildes);
 	const DeviceClass_t* dev_class = DEV_CLASS(dev);
-	return dev_class->read (dev+1, buf, nbyte);
+	return dev_class->read (dev, buf, nbyte);
 }
-ssize_t write(int fildes, const void *buf, size_t nbyte){
+ssize_t write	(int fildes, const void *buf, size_t nbyte){
 	Device_t * dev = DEV_PTR(fildes);//_devices[fildes];
 	const DeviceClass_t* dev_class = DEV_CLASS(dev);
-	return dev_class->write(dev+1, buf, nbyte);
+	return dev_class->write(dev, buf, nbyte);
 }
-int close	(int fildes){
+int 	close	(int fildes){
 	Device_t* dev = DEV_PTR(fildes);
 	const DeviceClass_t* dev_class = DEV_CLASS(dev);
-	int rc = dev_class->close(dev+1);
+	device_flag_free(fildes);
+	int rc = dev_class->close(dev);
 	dtree_unref(dev);
 	return rc;
 }
@@ -138,6 +168,14 @@ group ID instead of the real user ID and group ID as required in a call to
 access( ).
 	
  */
+int symlinkat(const char *path1, int fd, const char *path2){
+	Device_t* dirp = DEV_PTR(fd);// -1 => NULL, -2 => CWD
+	dirp = dtree_path(dirp, path2, &path2);
+	if (dirp==NULL || path2!=NULL) return -1;
+	Device_t* dev = dtree_mknodat(dirp, path2,  0, DEV_LNK);
+	*(void**)(dev +1) = (void*)path1;// strndup
+	return 0;
+}
 int mknodat(int fd, const char *path, mode_t mode, dev_t dev_id){
 	const char* name;
 	Device_t* dirp = DEV_PTR(fd);// -1 => NULL, -2 => CWD
@@ -152,17 +190,33 @@ int mknod (const char *path, mode_t mode, dev_t dev_id){
 int mkfifo(const char *path, mode_t mode){
 	return mknodat(AT_FDCWD, path, mode, DEV_FIFO);
 }
-
 int access(const char *path, int amode) {
 	return faccessat(AT_FDCWD, path, amode, 0);
 }
 int link  (const char *path1, const char *path){
 	return linkat(AT_FDCWD, path1, AT_FDCWD, path, AT_SYMLINK_FOLLOW);
 }
+int linkat(int fd1, const char *path1, int fd2, const char *path2, int flag)
+{
+	Device_t* dev = DEV_PTR(fd2);
+	dev = dtree_path(dev, path2, &path2);// flag
+	if (dtree_nlink(dev)<0) return -1;
+	
+	Device_t* dirp = DEV_PTR(fd1);
+	dirp = dtree_path(dirp, path1, &path1);
+	dtree_insert(dirp, path1, dev);
+	return 0;
+}
 int mkdir (const char *path, mode_t mode){
 	return mknodat(AT_FDCWD, path, mode, DEV_DIR);
 }
-int creat (const char *path, mode_t mode) {
+int mkfifoat(int fd, const char *path, mode_t mode){
+	return mknodat(fd, path, mode, DEV_FIFO);
+}
+int symlink(const char *path1, const char *path2){
+	return symlinkat(path1, AT_FDCWD, path2);
+}
+inline int creat (const char *path, mode_t mode) {
     return open(path, O_WRONLY|O_CREAT|O_TRUNC, mode);
 }
 int fsync (int fildes){// если операция не завершена, ждать завершения
@@ -176,7 +230,7 @@ int fdatasync(int fildes){
 int ftruncate(int fildes, off_t length){
 	Device_t* dev = DEV_PTR(fildes);
 	const DeviceClass_t* dev_class = DEV_CLASS(dev);//[dev->dev_id];
-	return dev_class->trunc(dev+1, length);
+	return dev_class->trunc(dev, length);
 }
 int chdir(const char *path){
 	const char* name;
@@ -191,17 +245,19 @@ int fchdir(int fildes){
 }
 int fstat (int fildes, struct stat *buf){
 	Device_t* dev = DEV_PTR(fildes);
-	*buf = *(struct stat *)dev;
+	*buf = *(struct stat *)dev;// исправить
+	if (DEV_ID(dev)==DEV_FIL) {// дописать
+		
+	}
 }
 int stat (const char *restrict path, struct stat *restrict buf){
 	return fstatat(AT_FDCWD, path, buf, 0);
 }
-int 	unlink(const char *path)
-{
-	Device_t* dev = dtree_path(NULL, path, &path);
-	if (dev==NULL || path!=NULL) return -1;
-	dtree_unref(dev);
-	return 0;
+int unlink(const char *path) {
+	return unlinkat(AT_FDCWD, path, 0);// AT_REMOVEDIR
+}
+int rmdir(const char *path) {
+	return unlinkat(AT_FDCWD, path, AT_REMOVEDIR);// AT_REMOVEDIR
 }
 /*! \} */
 #endif
@@ -211,6 +267,12 @@ int 	unlink(const char *path)
 	\{
 faccessat( ), fdopendir( ), fstatat( ), linkat( ), mkdirat( ), openat( ), renameat( ), unlinkat( ),
 utimensat( ) */
+int 	unlinkat(int fd, const char *path, int flag) {
+	Device_t* dev = dtree_path(DEV_PTR(fd), path, &path);
+	if (dev==NULL || path!=NULL) return -1;
+	dtree_unref(dev);
+	return 0;
+}
 int faccessat(int fd, const char *path, int amode, int flag) {
 	
 	const char* name;
@@ -229,6 +291,9 @@ int fstatat(int fd, const char *restrict path, struct stat *restrict buf, int fl
 	if (dev==NULL || name!=NULL) return -1;
 	*buf = *(struct stat *)dev;
 	return 0;
+}
+int mkdirat(int fd, const char *path, mode_t mode) {
+	return mknodat(fd, path, mode, DEV_DIR);
 }
 #if 0
 int linkat(int fd1, const char *path1, int fd2, const char *path2, int flag){
@@ -660,36 +725,24 @@ int fchownat(int fildes, const char *path, uid_t uid, gid_t gid){
 dup( ), dup2( ), fcntl( ), fgetpos( ), fseek( ), fseeko( ), fsetpos( ), ftell( ), ftello( ), 
 ftruncate( ), lseek( ), rewind( )
 	*/
-/*! \brief
-	\ingroup POSIX_FD_MGMT _libc
- */	
-off_t 	ftello	(FILE *f){
-	return f->offset;
-}
-/*! \brief
-	\ingroup POSIX_FD_MGMT _libc 
- */	
-int     fseeko 	(FILE *f, off_t offset, int whence){
-	Device_t* dev = (Device_t*)f -1;
-	const DeviceClass_t* dev_class = DEV_CLASS(dev);
-	dev_class->seek(f, offset, whence);
-/*
-	switch (whence) {
-	case SEEK_SET: f->offset =offset; break;
-	case SEEK_CUR: f->offset+=offset; break;
-	case SEEK_END: f->offset =f->size + offset; 
-		break;
-	default: 
-		return -1;
-	}*/
-	return 0;
-}
 off_t lseek(int fildes, off_t offset, int whence){
 	Device_t* dev = DEV_PTR(fildes);
-	const DeviceClass_t* dev_class = DEV_CLASS(dev);//[dev->dev_id];
+	const DeviceClass_t* dev_class = DEV_CLASS(dev);
 	return dev_class->seek(dev+1, offset, whence);
 }
 int lstat(const char *restrict path, struct stat *restrict buf){
 	return fstatat(AT_FDCWD, path, buf, AT_SYMLINK_NOFOLLOW);
+}
+int fcntl(int fildes, int cmd, ...)
+{
+	va_list ap;
+	va_start (ap, cmd);
+	int res;
+	Device_t* dev = DEV_PTR(fildes);
+	switch (cmd) {
+	default: break;
+	}
+	return 0;
+	va_end(ap);
 }
 #endif

@@ -1,6 +1,7 @@
 /*! \file signal.h */
 #ifndef _SIGNAL_H_
 #define _SIGNAL_H_
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/_timespec.h>
 #define _SIG_ATOMIC_T_DEFINED
@@ -74,8 +75,8 @@ struct sigevent {
 	int          sigev_signo;                /* Signal number */
 	union sigval sigev_value;                /* Signal value */
 	void           (*sigev_notify_function)( union sigval );
-
 // могут быть дополнительные параметры \see _POSIX_THREADS
+	pthread_attr_t *sigev_notify_attributes;// Notification attributes.
 };
 struct sigaction {
   int         sa_flags;   	/* Special flags to affect behavior of signal. */

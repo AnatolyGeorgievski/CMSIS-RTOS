@@ -57,20 +57,23 @@ int     g_option_context_parse (GOptionContext *context, int *argc, char***argv,
                 {
                     switch(entry->arg){
                     case G_OPTION_ARG_NONE:
-                        if (entry->arg_data) *(int*)entry->arg_data = !(entry->flags & G_OPTION_FLAG_REVERSE);
+                        if (entry->arg_data) 
+							*(int*)entry->arg_data = !(entry->flags & G_OPTION_FLAG_REVERSE);
                         break;
                     case G_OPTION_ARG_INT:
                         i++;
-                        if (entry->arg_data && i<*argc) {
+                        if (entry->arg_data && i<*argc)
                             *(int*)entry->arg_data = atoi(args[i]);
-                        }
                         break;
                     case G_OPTION_ARG_STRING:
                     case G_OPTION_ARG_FILENAME:
 // TODO возможно требуется преобразование из locale в utf-8
                         i++;
-                        if (entry->arg_data && i<*argc)    *(char* *)entry->arg_data = args[i];
+                        if (entry->arg_data && i<*argc)    
+							*(char* *)entry->arg_data = args[i];
                         break;
+					case G_OPTION_ARG_STRING_ARRAY:
+					case G_OPTION_ARG_FILENAME_ARRAY:// the data should be freed using g_strfreev().
                     default:
                         break;
                     }

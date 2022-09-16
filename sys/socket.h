@@ -51,7 +51,7 @@ SO_TYPE,		    //!< Socket type.
 #define SHUT_WR		2	//!< Disables further send operations. 
 #define SHUT_RDWR 	3	//!< Disables further send and receive operations.
 
-#define SOMAXCONN 4
+#define SOMAXCONN 4	//!< The maximum backlog queue length.
 #define SOMINCONN 1
 
 typedef size_t socklen_t;

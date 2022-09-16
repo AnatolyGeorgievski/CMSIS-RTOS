@@ -19,9 +19,9 @@ simultaneously. The value is at least eight.*/
 // Устройство должно обладать номером и правами доступа... 
 typedef struct _Device Device_t;
 struct _Device {
-	ino_t ino:24;
-	dev_t dev_id:8; 
-	mode_t mode:16;
+	dev_t  dev_id:8; 
+	ino_t  ino	:24;
+	mode_t mode	:16;
 
 	uid_t 	uid:8;		// User ID of file.
 	gid_t 	gid:8;		// Group ID of file.
@@ -36,16 +36,29 @@ struct _fpos {
 //	mbstate_t 	mbstate;
 };
 
-// Системно - зависимые определения
-typedef struct _File FILE;
+// Системно - зависимые определения: 
+// Есть несколько определений: Device, File, File Descriptor (fildes), Open File Description
+
+
+typedef struct _OpenFileDescription FILE;
+// \see <aio.h>
+struct _OpenFileDescription {
+	dev_t  dev_id:8;
+	int fildes:8;
+//	int8_t 	prio;	// Request priority offset.
+	
+	uint32_t 	nbytes; // Length of transfer.
+	off_t	offset;	// File offset.
+//	volatile void *  buf;	// Location of buffer.
+	struct _File *file; 	//
+};
 struct _File {
-// структура повторяет собой struct stat <sys/stat.h>
-//	int		fildes;	// попробовать убрать
-	off_t	size;
-	off_t	offset;
 	void* 	phandle;// на носителе
+	off_t	size;	// размер на носителе
 	struct timespec mtim;// Last data modification timestamp.
 };
+
+
 struct _DeviceClass {
 	struct {
 		int xfer_block:4;// размер блока в битах
@@ -71,6 +84,7 @@ struct _DeviceClass {
 extern Device_t* dtree_path	 (Device_t* , const char* path, const char**name);
 //extern FILE* dtree_openat(FILE* , const char* name, int oflag, mode_t mode);
 extern Device_t* dtree_mknodat(Device_t* fp, const char* name, mode_t mode, dev_t dev_id);
+extern void  dtree_insert(Device_t* dirp, const char* name, Device_t *dev);
 extern int 	 dtree_unref (Device_t* );
 extern int 	 dtree_nlink (Device_t* );
 // преобразует системные объекты в дескрипторы 
@@ -96,6 +110,7 @@ extern const struct _DeviceClass* dev_classes[];
 #define DEV_PTR(fildes) _devices[fildes+2]
 #define DEV_ID(dev)  	((dev)->dev_id)
 #define DEV_CLASS(dev)  dev_classes[DEV_ID(dev)]
+#define FILE_CLASS(f)  dev_classes[DEV_ID(f)]
 
 
 =======

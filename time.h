@@ -60,8 +60,6 @@ int timespec_get	(struct timespec *ts, int base);
 int timespec_getres	(struct timespec *ts ,int base);
 
 
-extern int32_t timezone;//= (3*3600); 
-
 clock_t clock(void);
 time_t time(time_t *timer);
 time_t mktime(struct tm *timeptr); // заполняет поля wday и yday

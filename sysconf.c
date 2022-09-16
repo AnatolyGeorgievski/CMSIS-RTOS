@@ -11,6 +11,8 @@ long sysconf(int name)
 {
 	long v;
 	switch (name){
+//case _SC_SIGRT_MIN: v = SIGRTMIN; break;
+
 case _SC_ADVISORY_INFO	: v = _POSIX_ADVISORY_INFO; 	break;
 case _SC_BARRIERS		: v = _POSIX_BARRIERS; 	break;
 case _SC_ASYNCHRONOUS_IO: v = _POSIX_ASYNCHRONOUS_IO; 	break;

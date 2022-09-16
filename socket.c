@@ -166,15 +166,17 @@ socketpair( )
 */
 int socket(int domain, int type, int protocol)
 {
-	int sock_fd;//
+	int sock_fd = -1;
+	if (domain==AF_UNIX) {
+		
+	} else
 	if (domain==AF_INET) {
-		sock_fd = socket_alloc();// выделяет номер сокета
+		sock_fd = atomic_flag_alloc(socket_flags); // выделяет номер сокета
 		if (sock_fd<0) return sock_fd;
 //		sock[sock_fd].domain = AF_INET;
-		struct _socket *s = sock[sock_fd];
-		if (s==NULL) {
-			s = sock[sock_fd]= malloc(sizeof (struct _socket));
-		}
+		struct _socket *s = [sock_fd];
+		if (s==NULL)
+			sock[sock_fd] = s = malloc(sizeof(struct _socket));
 		__builtin_bzero(s, sizeof (struct _socket));
 		s->type     = type;
 		s->protocol = protocol;
@@ -189,7 +191,7 @@ void closesocket(int sock_fd)
 int getsockopt(int sock_fd, int level, int option_name, 
 		void *restrict option_value, socklen_t *restrict option_len)
 {
-	int res = 0;
+	int res = -1;
 	return res;
 }
 /*! 	
@@ -199,7 +201,7 @@ int getsockopt(int sock_fd, int level, int option_name,
 int setsockopt(int sock_fd, int level, int option_name, 
 		const void *option_value, socklen_t option_len)
 {
-	struct _socket* s = sock[sock_fd];
+	struct _socket* s = DEV_PTR(sock_fd);
 	if (s==NULL) return (-1);
 	int res = 0;
 	if (level==SOL_SOCKET)
@@ -394,7 +396,11 @@ int accept (int socket, struct sockaddr *restrict address, socklen_t *restrict a
 int connect(int socket, const struct sockaddr *address, socklen_t address_len)
 {
 	sock[socket]->connect = 1;
-	
+	if (address->sa_family == AF_UNIX) {
+		const struct sockaddr_un * sun = (const struct sockaddr_un *)address
+		// int fildes = open(sun->sun_path, O_RDWR);
+		return fildes;
+	}
 }
 
 /*!

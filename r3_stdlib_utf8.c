@@ -19,7 +19,7 @@ uint_least32_t g_utf8_get_char (const char* str)
 //			ch++;
 		} else
 		if ((s[0]&0xF0)==0xE0 && (s[1]&0xC0)==0x80 && (s[2]&0xC0)==0x80){
-			return (uint_least32_t)(s[0] & 0x0FU)<<6 | (uint_least32_t)(s[1] & 0x3FU)<<6 | (s[2] & 0x3FU);
+			return (uint_least32_t)(s[0] & 0x0FU)<<12 | (uint_least32_t)(s[1] & 0x3FU)<<6 | (s[2] & 0x3FU);
 //			ch+=2;
 		}
 	}

@@ -17,7 +17,7 @@ dtree_path
 dtree_mknodat
 dtree_unref
 
-Файловая система - это некоторый отдельный процесс который заполняет два дерева:
+Файловая система - это некоторый отдельный процесс, который заполняет два дерева:
 Директория dtee_* поиск по пути и есть возможность находить объекты по идентификаторам (dev, ino). 
 Основаня возможность - это отображение прямо в память без копирования, с использованием функций mmap
 
@@ -37,14 +37,17 @@ the position within the controlled stream
 
 typedef struct _Device Device_t;
 typedef struct _DeviceClass DeviceClass_t;
+
 /*!	\brief 
 	\ingroup POSIX_DEVICE_IO _libc _stdio
 
 */
 int 	fclose	(FILE *f){
-	Device_t * dev = (Device_t*)f -1;
-	const DeviceClass_t* dev_class = DEV_CLASS(dev);
+	device_flag_free(f->fildes);// освободить дескриптор файла
+	const DeviceClass_t* dev_class = FILE_CLASS(f);
 	int rc = dev_class->close(f);
+	Device_t* dev = (Device_t*)f->file -1;
+	g_slice_free(sizeof(FILE), f);// удалить OpenFileDescription Object
 	dtree_unref(dev);
 	return rc;
 }
@@ -78,37 +81,35 @@ FILE *	fopen	(const char *restrict path, const char *restrict mods)
 	}
 	if (mods[0]=='b') oflag |= O_BINARY;//
 	
-	const char* name;
+	int fildes = device_flag_alloc((void*)NULL);
+
+	const char* name=NULL;
 	Device_t* dev = dtree_path(NULL, path, &name);// follow symlink? [EACCES] ELOOP ENXIO
 	if (dev==NULL) {// выйти путь не найден
 		return NULL;
 	} else
 	if (name==NULL){// путь разобран
 		if (dev->dev_id!=DEV_FIL)  return NULL;// EISDIR
-		if (dtree_nlink(dev)<0) return NULL;// ENOENT
-/*		if (oflag & O_APPEND) dev->offset = dev->size;
-		else
-		if (oflag & O_TRUNC ) dev->offset = 0; */
 	} else {
 		if (dev->dev_id!=DEV_DIR) return NULL;// ENOTDIR
 		if ((oflag & O_CREAT)==0) return NULL;
 		dev = dtree_mknodat(dev, name, mode, DEV_FIL);// EMFILE ENOMEM EROFS
 	}
-	return (FILE*)(dev+1);
+	if (dtree_nlink(dev)<0) return NULL;
+	
+	struct _OpenFileDescription * f= g_slice_alloc(sizeof(struct _OpenFileDescription));// open file description
+	f->dev_id = DEV_FIL;
+	f->fildes = fildes;
+	f->offset = 0;
+	f->file = (struct _File *)(dev +1);
+	DEV_PTR(fildes) = (Device_t*)f;
+	return f;
 }
 /*! \brief
 	\ingroup POSIX_DEVICE_IO _libc _stdio
  */	
-int 	vfprintf(FILE *restrict f, const char *restrict format, va_list ap)
-{
-	// Если определено POSIX MEMORY MAPPING
-	int fildes = fileno(f);// может вернуть -1
-	char* str = mmap(0, BUFSIZ, PROT_WRITE, MAP_PRIVATE, fildes, f->offset);
-	int rc = vsnprintf(str, BUFSIZ, format, ap);
-	f->size += rc;
-	fdatasync(fildes);
-	munmap(str, BUFSIZ);
-	return rc;
+int 	vfprintf(FILE *restrict f, const char *restrict format, va_list ap) {
+	return vdprintf(f->fildes, format, ap);
 }
 /*! \brief
 	\ingroup POSIX_DEVICE_IO _libc _stdio
@@ -188,54 +189,81 @@ int 	fprintf	(FILE *restrict f, const char *restrict format, ...)
 */
 <<<<<<< HEAD
 int fputs	(const char *restrict str, FILE *restrict f) {
-	Device_t* dev = (Device_t*)f -1;
-	const DeviceClass_t* dev_class = DEV_CLASS(dev);
+	const DeviceClass_t* dev_class = FILE_CLASS(f);
 	return dev_class->write(f, str, strlen(str));
 }
 /*! \brief
 	\ingroup POSIX_DEVICE_IO _libc _stdio
  */	
-size_t fread	(      void *restrict ptr, size_t size, size_t nitems, FILE* restrict f){
-	Device_t* dev = (Device_t*)f -1;
-	const DeviceClass_t* dev_class = DEV_CLASS(dev);
+inline size_t fread	(      void *restrict ptr, size_t size, size_t nitems, FILE* restrict f){
+	const DeviceClass_t* dev_class = FILE_CLASS(f);
 	return dev_class->read (f, ptr, size*nitems);
 }
 /*! \brief
 	\ingroup POSIX_DEVICE_IO _libc _stdio
  */	
-size_t fwrite	(const void *restrict ptr, size_t size, size_t nitems, FILE* restrict f){
-	Device_t* dev = (Device_t*)f -1;
-	const DeviceClass_t* dev_class = DEV_CLASS(dev);
+inline size_t fwrite	(const void *restrict ptr, size_t size, size_t nitems, FILE* restrict f){
+	const DeviceClass_t* dev_class = FILE_CLASS(f);
 	return dev_class->write(f, ptr, size*nitems);
 }
 /*! \brief
 	\ingroup POSIX_DEVICE_IO _libc _stdio
  */	
-int 	feof	(FILE *f){
-	return (f->offset == f->size);
+inline int 	feof	(FILE *f){
+	return (f->offset == f->file->size);
 }
 /*! \brief
 	\ingroup POSIX_FD_MGMT _libc _stdio
  */	
-int fgetpos	(FILE *restrict f, fpos_t *restrict pos) {
+inline int fgetpos	(FILE *restrict f, fpos_t *restrict pos) {
 	pos->offset = f->offset;
 	return 0;
 }
 /*! \brief
 	\ingroup POSIX_FD_MGMT _libc _stdio
  */	
-int fsetpos(FILE * f, const fpos_t * pos){
+inline int fsetpos(FILE * f, const fpos_t * pos){
 	f->offset = pos->offset;
 	return 0;
 }
-#if 0
-int fileno(FILE* restrict f){// тут есть неопределенность чем закрыть close или fclose
-	return -1;
-/*	if (f->fildes<0)
-		f->fildes = device_flag_alloc((Device_t*)f -1);
-	return f->fildes; */
+/*! \brief
+	\ingroup POSIX_DEVICE_IO _libc _stdio
+ */	
+void clearerr(FILE *f) {
+	
 }
-#endif
+inline void rewind(FILE *f ){
+	f->offset = 0;
+}
+int fflush(FILE *f){
+	return 0;
+}
+/*! \brief
+	\ingroup POSIX_FD_MGMT _libc
+ */	
+off_t 	ftello	(FILE *f){
+	return f->offset;
+}
+/*! \brief
+	\ingroup POSIX_FD_MGMT _libc 
+ */	
+int     fseeko 	(FILE *f, off_t offset, int whence){
+	const DeviceClass_t* dev_class = FILE_CLASS(f);
+	dev_class->seek(f, offset, whence);
+	return 0;
+}
+inline int fileno(FILE* restrict f){// тут есть неопределенность чем закрыть close или fclose
+	return f->fildes; 
+}
+int remove(const char *path){
+	Device_t* dev = dtree_path(NULL, path, &path);
+	dtree_unref(dev);
+	return 0;
+}
+int rename(const char *old, const char *new){
+	///
+	return 0;
+}
 //!\}
 =======
 int 	fputs	(const char *restrict str, FILE *restrict f) {

@@ -1,17 +1,12 @@
 #include <unistd.h>
 #include <sys/stdio.h>
-<<<<<<< HEAD
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <dirent.h>
-=======
-#include <fcntl.h>
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 #include <string.h>
 #include <atomic.h>
 #include <r3_slice.h>
 
-<<<<<<< HEAD
 //#include "pshared.h"
 typedef struct _Device Device_t;
 typedef struct _DeviceClass DeviceClass_t;
@@ -42,22 +37,6 @@ void dtree_init(){
 }
 
 const DeviceClass_t *dev_classes[4]={NULL};
-=======
-#include "pshared.h"
-
-typedef struct _dentry dentry_t;
-struct _dentry {
-	uint32_t  key;// ключ для сравнения
-	dentry_t* next;
-	FILE* dev;
-	const char*d_name;
-};
-// контекст процесса, специальный сегмент памяти:
-FILE *dentry_root=NULL;
-FILE *dentry_dev =NULL;// device tree
-FILE *dentry_cwd =NULL;
-mode_t umask = ~0;//0777;
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 
 volatile int FILE_unique_id=0;
 /*! Функция выбрана исходя из того, что используются маленькие буквы, 
@@ -69,9 +48,12 @@ static uint32_t dtree_hash(const char* name, int len){
 		hash = ((hash<<6) | (hash>>26)) ^ (uint8_t)name[0];// ROR(hash, 26)
 		name++;
 	} while (name[0]!='\0' && --len);
+#ifndef __REV
+	return (hash);
+#else 
 	return __REV(hash);
+#endif
 }
-<<<<<<< HEAD
 static dentry_t* dentry_push(Device_t *parent, Device_t *dev, const char* name, int nlen)
 {
 	dentry_t *dentry;
@@ -85,34 +67,18 @@ static dentry_t* dentry_push(Device_t *parent, Device_t *dev, const char* name, 
 #else
 	void* node;
 	volatile void** ptr = (volatile void**)(dentry_t**)(parent+1);
-=======
-static void dtree_insert(FILE * parent, uint32_t key, const char* name, FILE *dev)
-{
-	dentry_t *dentry = g_slice_alloc(sizeof(dentry_t));
-	dentry->dev  = dev;
-	dentry->d_name = name;
-	dentry->key = key;
-	void* node;
-	volatile void** ptr = (volatile void**)&parent->phandle;
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 	do {
 		dentry->next = node = atomic_pointer_get(ptr);
 		atomic_mb();// fence
 	} while (!atomic_pointer_compare_and_exchange(ptr, node, dentry));
-<<<<<<< HEAD
 #endif
 	return dentry;
 }
 static inline int path_token(const char* name){
-=======
-}
-static int path_token(const char* name){
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 	int len=0;
 	while (name[len]!='/' && name[len]!='\0') len++;
 	return len;
 }
-<<<<<<< HEAD
 
 /*! \defgroup _dtree Device Structured View (Directory)
 	\brief Базовый интерфейс для поиска объектов
@@ -141,7 +107,8 @@ void dtree_insert(Device_t * dirp, const char* name, Device_t *dev)
 	if (dirp->dev_id == DEV_DIR && dtree_nlink(dirp)>=0) {
 		dentry_push(dirp, dev, name, 16);
 		if (dev->dev_id == DEV_DIR) {
-			dentry_push(dev, dev, 	 ".",  1);
+			// это для людей, а вот для себя можно ->dev_parent
+			dentry_push(dev, dev,  ".",  1);
 			dentry_push(dev, dirp, "..", 2);
 		}
 	}
@@ -151,43 +118,51 @@ void dtree_insert(Device_t * dirp, const char* name, Device_t *dev)
  */
 Device_t* dtree_path  (Device_t* fp, const char* path, const char**tail)
 {
-	if (path[0]=='/') fp = dentry_root, path++;
-//	else
-//	if (path[0]=='~') fp = dentry_home, path++;
-	else
-	if (fp==NULL)  fp = dentry_cwd;
-	int nlen;
-	while(fp!=NULL && (nlen=path_token(path))) {
-		dentry_t * dentry = *(dentry_t **)(fp+1);
-=======
-/*! \brief объект типа файл или директория, на который ссылается путь
-	\return NULL или объект типа FILE или DIR, на который ссылается путь
- */
-FILE* dtree_path  (FILE* fp, const char* path, const char**tail)
-{
-	if (path[0]=='/') fp = dentry_root, path++;
-	if (fp==NULL)  fp = dentry_cwd;
-	int nlen;
-	while(fp!=NULL && (nlen=path_token(path))) {
-		dentry_t * dentry = fp->phandle;
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
-		uint32_t key = dtree_hash(path, nlen);// можно считать хеш внутри path_token
-		while (dentry) {// поиск по списку
-			if (dentry->key == key && strncmp(dentry->d_name, path, nlen) == 0){
-				path += nlen;
-				if (path[0]=='/') path++;
-				fp = dentry->dev;
-				break;
+	if (path!=NULL){
+		if (path[0]=='/') fp = dentry_root, path++;
+	//	else
+	//	if (path[0]=='~') fp = dentry_home, path++;
+		else
+		if (fp==NULL)  fp = dentry_cwd;
+		int nlen;
+		while(fp!=NULL && (nlen=path_token(path))) {
+			dentry_t * dentry = *(dentry_t **)(fp+1);
+			uint32_t key = dtree_hash(path, nlen);// можно считать хеш внутри path_token
+			while (dentry) {// поиск по списку
+				if(dentry->key == key && strncmp(dentry->d_name, path, nlen) == 0){
+					path += nlen;
+					if (path[0]=='/') path++;
+					fp = dentry->dev;
+					break;
+				}
+				dentry = dentry->next;
 			}
-			dentry = dentry->next;
+			if (dentry==NULL) 
+				return NULL;
 		}
-		if (dentry==NULL) 
-			return NULL;
 	}
 	*tail = path;
 	return fp;
 }
-<<<<<<< HEAD
+/*
+ */
+Device_t* dtree_openat(Device_t* fp, const char* name) {
+	if (fp==NULL) fp = dentry_cwd;
+	if (DEV_ID(fp)!=DEV_DIR) return NULL;
+	int nlen=path_token(name);
+	uint32_t key = dtree_hash(name, nlen);
+
+	dentry_t * dentry = *(dentry_t **)(fp+1);
+	while (dentry) {// поиск по списку
+		if(dentry->key == key && strncmp(dentry->d_name, name, nlen) == 0) {
+			if(dtree_nlink(dentry->dev)>=0) return dentry->dev;
+			break;
+		}
+		dentry = dentry->next;
+	}
+	return NULL;
+}
+
 int   dtree_unref (Device_t* dev){
 	int count = atomic_fetch_sub(&dev->nlink, 1 );
 	if (count == 0){
@@ -197,42 +172,26 @@ int   dtree_unref (Device_t* dev){
 	return count;
 }
 static volatile int FILE_uid=0;
-Device_t* dtree_mknodat(Device_t* fp, const char* name, mode_t mode, dev_t dev_id)
+
+#define OID_DEV(oid) (oid & 0xF)
+#define OID_INO(oid) (oid >>  4)
+#define OID_UDF(oid) (OID_INO(oid) == 0)
+// \todo переделать dev_t в тип oid
+Device_t* dtree_mknodat(Device_t* fp, const char* name, mode_t mode, dev_t oid)
 {
 	const DeviceClass_t* dev_class = DEV_CLASS(fp);
 	int alloc_size= dev_class->alloc_size;
 	volatile int * unique_id = &FILE_uid;// dev_class->unique_id;
 	Device_t* f;
 	f = g_slice_alloc(sizeof(Device_t)+alloc_size);
-	f->dev_id  = dev_id;
-	f->ino  = atomic_fetch_add(unique_id, 1);
+	f->dev_id  = OID_DEV(oid);
+	f->ino  = OID_UDF(oid)? atomic_fetch_add(unique_id, 1): OID_INO(oid);
 	f->mode = mode & _umask;
-	f->uid = ~0; 
-	f->gid = ~0;
+	f->uid = 0; 
+	f->gid = 0;
 	// назначить права uid и gid
 	f->nlink = 0;
 	dtree_insert(fp, name, f);	
 	return f;
 }
 //!\}
-=======
-FILE* dtree_openat(FILE* fp, const char* name, int oflag, mode_t mode){
-	FILE* f = NULL;
-	if (name!=NULL && (oflag&O_CREAT) && (fp->dev == DEV_DIR)) {
-		f = g_slice_alloc(sizeof(FILE));
-		f->dev  = DEV_FIL;
-		f->ino  = atomic_fetch_add(&FILE_unique_id, 1);
-		f->mode = mode & umask;
-		f->nlink = 0;
-		uint32_t key = dtree_hash(name, 256);// ключик для хеширования
-		dtree_insert(fp, key, name, f);
-	}
-	return f;
-}
-int   dtree_unref (FILE* f){
-	int count = atomic_fetch_sub(&f->nlink, 1);
-	if (count == 0)
-		g_slice_free1(sizeof(FILE), f);
-	return count;
-}
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299

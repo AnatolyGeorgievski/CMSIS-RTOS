@@ -2,6 +2,26 @@
 #define _SYS_STAT_H_
 #include <sys/types.h>
 #include <sys/_timespec.h>
+#if 1
+typedef unsigned int _dev_t;
+typedef unsigned short _ino_t;
+typedef __PTRDIFF_TYPE__ _off_t;
+
+  struct stat {
+    _dev_t st_dev;
+    _ino_t st_ino;
+    unsigned short st_mode;
+    short st_nlink;
+    short st_uid;
+    short st_gid;
+    _dev_t st_rdev;
+    _off_t st_size;
+    time_t st_atime;
+    time_t st_mtime;
+    time_t st_ctime;
+  };
+#else
+
 struct stat {
 // The st_ino and st_dev fields taken together uniquely identify the file within the system
 #if 0
@@ -46,7 +66,7 @@ values st_ctim.tv_sec and st_mtim.tv_sec, respectively. */
 #define st_atime st_atim.tv_sec
 #define st_mtime st_mtim.tv_sec
 #define st_ctime st_ctim.tv_sec
-
+#endif
 
 #define _IFMT           0170000 /* type of file */
 #define         _IFIFO  0010000 /* fifo */
@@ -116,7 +136,7 @@ values st_ctim.tv_sec and st_mtim.tv_sec, respectively. */
 <<<<<<< HEAD
 int      stat  (const char *restrict __path, struct stat *restrict __sbuf );
 int     fstat  (int __fd, struct stat *__sbuf );
-int 	fstatat(int, const char *restrict, struct stat *restrict, int);
+int 	fstatat(int __fd, const char *restrict, struct stat *restrict, int);
 int      chmod (const char *__path, mode_t __mode );
 int     fchmod (int __fd, mode_t __mode);
 int 	fchmodat(int, const char *, mode_t, int);
@@ -126,8 +146,8 @@ int 	mkdirat(int, const char *, mode_t);
 int     mkfifo (const char *__path, mode_t __mode );
 int 	mkfifoat(int, const char *, mode_t);
 mode_t  umask (mode_t __mask );
-int     futimens (int __fd, const struct timespec times[2]);
-int 	 utimensat(int fd, const char *path, const struct timespec times[2], int flag);
+int     futimens (int __fd, const struct timespec __times[2]);
+int 	 utimensat(int __fd, const char *__path, const struct timespec __times[2], int __flag);
 =======
 int     fstat (int __fd, struct stat *__sbuf );
 int     fchmod(int __fd, mode_t __mode);
