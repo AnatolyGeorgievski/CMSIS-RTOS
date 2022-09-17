@@ -195,6 +195,20 @@ mprotect( )
 + environ, errno, getenv( ), sysconf( ), uname( )
 ```
 
+- **POSIX_THREAD_SAFE_FUNCTIONS**: Thread-Safe Functions
+On POSIX-conforming systems, the symbolic constant \_POSIX_THREAD_SAFE_FUNCTIONS is
+always defined. Therefore, the following functions are always supported:
+```
+- asctime_r( ) ctime_r( )
+  flockfile( ) ftrylockfile( ) funlockfile( )
+- getc_unlocked( ) getchar_unlocked( )
+  getgrgid_r( ) getgrnam_r( ) getpwnam_r( ) getpwuid_r( ) 
++ gmtime_r( ) localtime_r( )
++ putc_unlocked( ) putchar_unlocked( )
+  rand_r( ) strerror_r( ) 
++ readdir_r( ) strtok_r( )
+```
+
 [POSIX.1-2017] IEEE Std 1003.1tm -2017 (Revision of IEEE Std 1003.1-2008)
 The Open Group Standard Base Specfications, Issue 7
     https://pubs.opengroup.org/onlinepubs/9699919799/
