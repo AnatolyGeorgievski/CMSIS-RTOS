@@ -198,7 +198,7 @@ mprotect( )
 - **POSIX_THREAD_SAFE_FUNCTIONS**: Thread-Safe Functions
 On POSIX-conforming systems, the symbolic constant \_POSIX_THREAD_SAFE_FUNCTIONS is
 always defined. Therefore, the following functions are always supported:
-```
+```diff
 - asctime_r( ) ctime_r( )
   flockfile( ) ftrylockfile( ) funlockfile( )
 - getc_unlocked( ) getchar_unlocked( )
