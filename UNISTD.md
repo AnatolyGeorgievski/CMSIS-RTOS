@@ -155,7 +155,7 @@ sockatmark( ), socketpair( )
 ```diff
 + access( ), chdir( ), closedir( ), creat( ), fchdir( ), fpathconf( ), fstat( ), link( ),
 + mkdir( ), mkstemp( ), opendir( ), pathconf( ), remove( ), rename( ), rmdir( ),
-+ stat( ), tmpfile( ), runcate( ), unlink(), 
++ stat( ), tmpfile( ), truncate( ), unlink(), 
 - fstatvfs( ), getcwd( ), readdir( ), rewinddir( ), statvfs( ), tmpnam( ), utime( )
 ```
 
