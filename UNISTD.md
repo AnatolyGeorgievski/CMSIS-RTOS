@@ -179,6 +179,13 @@ sockatmark( ), socketpair( )
 + fchmodat( ), fchownat( )
 ```
 
+- **POSIX_FILE_LOCKING**: Thread-Safe Stdio Locking
+```diff
+  flockfile( ), ftrylockfile( ), funlockfile( ), 
+  getc_unlocked( ), getchar_unlocked( ), 
+  putc_unlocked( ), putchar_unlocked( )
+```
+
 - **POSIX_MAPPED_FILES**: Memory Mapped Files
 ```diff
 + mmap( ), munmap( )
