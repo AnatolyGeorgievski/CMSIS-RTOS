@@ -14,16 +14,12 @@ typedef struct _thread osThread_t;
 
 extern volatile osThread_t* thread_current;
 #define THREAD_PTR(x) ((osThread_t*)(x))
-<<<<<<< HEAD
 #if 1/*! \defgroup POSIX_SIGNALS POSIX: Signals
 	\ingroup _posix
 abort( ), alarm( ), kill( ), pause( ), raise( ), sigaction( ), sigaddset( ), sigdelset( ), sigemptyset( ),
 sigfillset( ), sigismember( ), signal( ), sigpending( ), sigprocmask( ), sigsuspend( ), sigwait( )
 	\{ */
 
-=======
-#if 0
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 /*! 
 
 
@@ -68,10 +64,7 @@ int signal(int sig, void (*func)(int))
 {
 	
 }
-<<<<<<< HEAD
 	//!\}
-=======
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 #endif
 
 typedef struct _fifo osSigQueue_t;
@@ -85,15 +78,12 @@ struct _fifo {
 };
 #define SIGQUEUE_PTR(x) (osSigQueue_t*)(x)
 #define ERR(e) -(e)
-<<<<<<< HEAD
 
 /*! \defgroup POSIX_REALTIME_SIGNALS POSIX: Realtime Signals
 	\ingroup _posix
 sigqueue( ), sigtimedwait( ), sigwaitinfo( )
 	\{ */
 
-=======
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 /*! \brief отправить сигнал с параметром 
 
 [EAGAIN]

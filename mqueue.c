@@ -9,13 +9,10 @@ The mq_notify( ) function may fail if:
 
 */
 #if defined(_POSIX_MESSAGE_PASSING) && (_POSIX_MESSAGE_PASSING>0)
-<<<<<<< HEAD
 /*! \defgroup _mqueue POSIX: Message Passing
 	\ingroup _posix
 	\{
 */
-=======
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 #include <mqueue.h>
 
 typedef struct _MQueue osMQueue_t;
@@ -68,7 +65,6 @@ void rpmsg_handler(uint32_t ept){
 #include <stdarg.h>
 #include <fcntl.h>
 #include <atomic.h>
-<<<<<<< HEAD
 #include <sys/stdio.h>
 #include <r3_slice.h>
 
@@ -77,19 +73,10 @@ void rpmsg_handler(uint32_t ept){
 static int mq_unique_id=0;
 //static const SharedClass_t mq_class = 
 //	{"rpm", DEV_MSG, sizeof(osMQueue_t), &mq_unique_id};
-=======
-#include <r3_slice.h>
-#include "pshared.h"
-
-static int mq_unique_id=0;
-static const SharedClass_t mq_class = 
-	{"rpm", DEV_MSG, sizeof(osMQueue_t), &mq_unique_id};
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 
 /*! 
 	\sa \ref sem_open \куа shm_open
 */
-<<<<<<< HEAD
 mqd_t mq_open(const char *path, int oflags, ...)
 {
 //	osMQueue_t* mq = shared_object_open(path, oflag, &mq_class);// рождается заблокированным и незримым
@@ -121,28 +108,5 @@ int mq_unlink(const char *path) {
 }
 #endif
 	//!\}
-=======
-mqd_t mq_open(const char *path, int oflag, ...)
-{
-	osMQueue_t* mq = shared_object_open(path, oflag, &mq_class);// рождается заблокированным и незримым
-	if (mq!=NULL && (oflag & (O_CREAT))) {
-		va_list  ap;
-		va_start(ap, oflag);
-		mode_t mode = va_arg(ap, mode_t);
-		const struct mq_attr* attr = va_arg(ap, void*);
-		va_end(ap);
-		mq_setattr(mq, attr, NULL);
-		shared_object_mode(mq, mode);// разрешить доступ и назначить права
-	}
-	return MQ_DES(mq);
-}
-int mq_close(mqd_t mdes) {
-	return shared_object_close(MQ_PTR(mdes), &mq_class);
-}
-int mq_unlink(const char *path) {
-	return shared_object_unlink(path, &mq_class);// уменьшает число ссылок и убивает, если обладает правом
-}
-#endif
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 #endif
 

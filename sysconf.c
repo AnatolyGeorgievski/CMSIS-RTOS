@@ -1,12 +1,9 @@
 #include <unistd.h>
 //static inline 
-<<<<<<< HEAD
 /*! \brief Распознавание параметров POSIX системы во время исополнения
 	\ingroup _posix
 	\param name идентификатор запрашиваемого параметра _SC_*  \see <unistd.h>
  */
-=======
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 long sysconf(int name)
 {
 	long v;

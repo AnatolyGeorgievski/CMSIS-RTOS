@@ -2,15 +2,6 @@
 #include <threads.h>
 #include <sys/thread.h>
 #include <svc.h>
-<<<<<<< HEAD
-=======
-
-typedef struct _thread osThread_t;
-#define THREAD_PTR(x) ((osThread_t*)(x))
-
-/*! \ingroup _system
-	\defgroup _mtx_  C11 Mutex
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 
 typedef struct _thread osThread_t;
 #define THREAD_PTR(x) ((osThread_t*)(x))

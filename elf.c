@@ -382,7 +382,6 @@ struct _dlCtx {
 	char * dynstr;
 	int fd;
 };
-<<<<<<< HEAD
 #if defined(_POSIX_MAPPED_FILES) && (_POSIX_MAPPED_FILES>0)
 #include <sys/mman.h>
 static void* elf_section_map(int fd, off_t offset, size_t size)
@@ -395,17 +394,12 @@ static void  elf_section_unmap(void* data, size_t size) {
 #else
 static void* elf_section_map(int fd, off_t offset, size_t size)
 {
-=======
-static void* elf_section_map(int fd, off_t offset, size_t size)
-{
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 	void* buf = malloc(size);
 	lseek(fd, offset, SEEK_SET);
 	read(fd, buf, size);
 	return buf;
 }
 static void  elf_section_unmap(void* data, size_t size) {
-<<<<<<< HEAD
 	free(data);// free_sized()
 }
 #endif
@@ -416,18 +410,6 @@ void* dlopen(const char* filename, int mode)
 	Elf32_Ehdr* elf_header = elf_section_map(fd, 0, sizeof(Elf32_Ehdr));
 	if (!(*(uint32_t*)elf_header == EI_MAGIC)) return NULL;
 
-=======
-	free(data);
-}
-void* dlopen(const char* filename, int mode)
-{
-	// FILE* fp = fopen(filename, "rb");
-	int fd = open(filename, O_RDONLY);
-//	Elf32_Ehdr* elf_header = malloc(sizeof(Elf32_Ehdr));
-	// загрузкить заголовок
-	Elf32_Ehdr* elf_header = elf_section_map(fd, 0, sizeof(Elf32_Ehdr));
-	//fread(&elf_header, 1, sizeof(Elf32_Ehdr), fp);
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 	uint32_t e_shoff = elf_header->e_shoff;	// смещение секции заголовков сегментов
 	uint32_t shnum   = elf_header->e_shnum;	// число заголовков сегментов
 	elf_section_unmap(elf_header, sizeof(Elf32_Ehdr));
@@ -445,13 +427,8 @@ void* dlopen(const char* filename, int mode)
 	ctx->dynsym = elf_section_map(fd, shdr[idx].sh_offset, shdr[idx].sh_size);
 	idx = elf_section_id(shdr, shnum, SHT_STRTAB);
 	ctx->dynstr = elf_section_map(fd, shdr[idx].sh_offset, shdr[idx].sh_size);
-<<<<<<< HEAD
 	elf_section_unmap((void*)shdr, shnum * sizeof(Elf32_Shdr));
 	close(ctx->fd);
-=======
-	close(ctx->fd);
-	elf_section_unmap((void*)shdr,0);
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 	return ctx;
 }
 void* dlsym(void* handler, const char* name)
@@ -787,12 +764,7 @@ const Names_t dt_names[] = {
 __attribute__((noinline))
 static void* elf_section_load(FILE* fp, off_t offset, size_t size) 
 {
-<<<<<<< HEAD
 	fseeko(fp, offset, SEEK_SET);
-=======
-	fpos_t fpos = offset;
-	fsetpos(fp, &fpos);
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 	void* section = malloc(size);
 	fread(section, 1, size, fp);
 	return section;

@@ -6,14 +6,8 @@
 typedef struct _thread osThread_t;
 #define THREAD_PTR(x) ((osThread_t*)(x))
 
-<<<<<<< HEAD
 /*!	\defgroup _cond_ C11 Condition Variables
 	\ingroup _system _libc
-=======
-/*! \ingroup _system
-	\defgroup _cond_ C11 Condition
-	
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 
 	\brief Функции управлениея некондицией процессов. 
 	

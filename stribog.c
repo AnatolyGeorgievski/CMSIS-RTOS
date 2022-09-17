@@ -79,6 +79,34 @@ static void S(unsigned char *state)
 		state[i] = Sbox[state[i]];
 	}
 }
+/* Преобразование L можно представить матричным умножением в поле 0x171
+
+Algebraic Aspects of the Russian Hash Standard GOST R 34.11-2012
+Oleksandr Kazymyrov, Valentyna Kazymyrova
+
+M = {
+71 05 09 B9 61 A2 27 0E
+04 88 5B B2 E4 36 5F 65
+5F CB AD 0F BA 2C 04 A5
+E5 01 54 BA 0F 11 2A 76
+D4 81 1C FA 39 5E 15 24
+05 71 5E 66 17 1C D0 02
+2D F1 E7 28 55 A0 4C 9A
+0E 02 F6 8A 15 9D 39 71
+};
+L = B*A
+Пояснение, как оно соотносится с с матрицей A
+Колонка 1 матрицы M - это элемент A[0], для которого выполнен разворот порядка следования бит. 
+8E=>71 20=>04 FA=>5F
+Колонка 2 матрицы M - это элемент A[8],
+. . .
+Колонка 8 матрицы M - это элемент A[56],
+
+От транспонивания вероятно можно избавиться
+Умножение можно выполнить на аффинных преобразованиях или на умножении без переноса с редуцированием
+
+На Neon есть умножение без переноса (Polynomial) 8x8 => 16*8
+*/
 
 static void L(unsigned char *state)
 {
@@ -93,7 +121,7 @@ static void L(unsigned char *state)
 			for(j=0;j<8;j++)
 			{
 				if ((state[i*8+k] & (1<<(7-j))) != 0)
-					v ^= A[k*8+j];
+					v ^= A[k*8+j];// v = REV8(K[i*8+k] (*) REV8(state[n]) mod 0x171)
 			}
 		}
 		for(k=0;k<8;k++)
@@ -120,9 +148,9 @@ static void KeySchedule(unsigned char *K,int i)
 {
 	AddXor512(K,C[i],K);
 
-    S(K);
-    P(K);
-    L(K);
+    S(K);// подстановка
+    P(K);// транспонирование
+    L(K);// линейная операция
 }
 
 static void E(unsigned char *K,const unsigned char *m, unsigned char *state)
@@ -135,10 +163,16 @@ static void E(unsigned char *K,const unsigned char *m, unsigned char *state)
 
     for(i=0;i<12;i++)
     {
-        S(state);
-        P(state);
+		AddXor512(K,C[i],K);
+
+		S(K);// подстановка
+		P(K);// транспонирование
+		L(K);// линейная операция
+		
+        S(state);// подстановка
+        P(state);// транспонирование
         L(state);
-        KeySchedule(K,i);
+//        KeySchedule(K,i);
         AddXor512(state,K,state);
     }
 }
@@ -150,8 +184,8 @@ static void g_N(const unsigned char *N,unsigned char *h,const unsigned char *m)
 	AddXor512(N,h,K);
 
     S(K);
-    P(K);
-    L(K);
+    P(K);// транспонирование
+    L(K);// линейная операция
 
     E(K,m,t);
 

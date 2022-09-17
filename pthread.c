@@ -82,16 +82,6 @@ static int osEventWait(int type, uint32_t value, uint32_t interval)
 	if (status & type) return 0;
 	if (status & osEventTimeout) return ETIMEDOUT;
 	return EINTR;
-<<<<<<< HEAD
-=======
-}
-static int osEventTimedWait(int type, uint32_t value, const struct timespec * restrict ts)
-{
-//	struct timespec *now;
-//	clock_gettime(CLOCK_REALTIME, &now);
-	uint32_t interval = (ts->tv_sec* 1000000U + ts->tv_nsec/1000) - clock();
-	return osEventWait(type, value, interval);
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 }
 static int osEventTimedWait(int type, uint32_t value, const struct timespec * restrict ts)
 {
@@ -314,63 +304,7 @@ int pthread_sigmask (int how, const sigset_t * restrict set, sigset_t * restrict
 	if (oset) *oset = msk;
 	return 0;
 }
-<<<<<<< HEAD
 //!\}
-=======
-#include <sys/select.h>
-// Три вида сигналов в одной маске.
-
-int __popcountsi2 (uint32_t n) {
-	uint8_t pop[16] = {0,1,1,2,1,2,2,3,1,2,2,3,2,3,3,4};
-	uint32_t count =0;
-	while (n) {
-		count += pop[n&0xF];
-		n>>=4;
-	}
-	return count;
-}
-int pselect(int nfds, fd_set *restrict readfds,
-       fd_set *restrict writefds, fd_set *restrict errorfds,
-       const struct timespec *restrict timeout,
-       const sigset_t *restrict sigmask)
-{
-	sigset_t signals = readfds->fds_bits[0]|(writefds->fds_bits[0]<<1)|(errorfds->fds_bits[0]<<2);
-	pthread_t thr = pthread_self();
-	sigset_t omask = atomic_exchange(&thr->process.sig_mask, sigmask[0]);// блокировать сигналы пользователя
-	uint32_t interval = (uint32_t)((timeout->tv_sec*1000000U)+ timeout->tv_nsec/1000U);
-	osEventWait(osEventSignal, signals, interval);
-	int event_type = thr->process.event.status;
-	if (event_type & osEventSignal) {
-		signals     &= atomic_fetch_and(&thr->process.signals, ~signals);
-		readfds ->fds_bits[0] &= signals;
-		writefds->fds_bits[0] &= signals>>1;
-		errorfds->fds_bits[0] &= signals>>2;
-		thr->process.sig_mask = omask;// восстановить сигналы
-		return __builtin_popcount(signals); 
-	}
-	thr->process.sig_mask = omask;// восстановить сигналы
-	return (event_type & osEventTimeout)?0: -1;
-}
-int select(int nfds, fd_set *restrict readfds,
-       fd_set *restrict writefds, fd_set *restrict errorfds,
-       const struct timeval *restrict ts)
-{
-	
-	sigset_t signals = readfds->fds_bits[0]|(writefds->fds_bits[0]<<1)|(errorfds->fds_bits[0]<<2);
-	uint32_t interval = ts->tv_sec* 1000000U + ts->tv_usec;
-	osEventWait(osEventSignal, signals, interval);
-	pthread_t thr = pthread_self();
-	int event_type = thr->process.event.status;
-	if (event_type & osEventSignal) {
-		signals  &= atomic_fetch_and(&thr->process.signals, ~signals);
-		readfds ->fds_bits[0] &= signals;
-		writefds->fds_bits[0] &= signals>>1;
-		errorfds->fds_bits[0] &= signals>>2;
-		return __builtin_popcount(signals); 
-	}
-	return (event_type & osEventTimeout)?0: -1;
-}
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 #if 0
 int socket(int domain, int type, int protocol) {
 	int fd = _flags_alloc();
@@ -447,7 +381,6 @@ int  sem_wait(sem_t * sem){
 #include <stdarg.h>
 #include <fcntl.h>
 int sem_close(sem_t* sem) {
-<<<<<<< HEAD
 	Device_t *dev = (Device_t *)sem -1;
 	dtree_unref(dev);// уменьшает nlink
 	return 0;
@@ -478,28 +411,6 @@ sem_t* sem_open(const char* path, int oflags, ...)
 }
 #endif
  //!\}
-=======
-	return shared_object_close(sem);
-}
-int sem_unlink(const char* path) {
-	return shared_object_unlink(path);// уменьшает число ссылок и убивает
-}
-sem_t* sem_open(const char* path, int oflags, ...)
-{
-	sem_t *sem = shared_object_open(path, oflags/*, DEV_SEM */);// рождается заблокированным и незримым
-	if (sem!=NULL && (oflags & (O_CREAT))) {
-		va_list  ap;
-		va_start(ap, oflags);
-		mode_t mode = va_arg(ap, mode_t);
-		uint32_t value = va_arg(ap, uint32_t);
-		va_end(ap);
-		sem_init(sem, 1, value);
-		shared_object_mode(sem, mode);// разрешить доступ и назначить права
-	}
-	return sem;
-}
-#endif
->>>>>>> 70f57831c2d5e46eb0d6195ba6a29572a4c13299
 #endif
 #if defined(_POSIX_SPIN_LOCKS) && (_POSIX_SPIN_LOCKS > 0)
 /* SPI _POSIX_SPIN_LOCKS (Spin Locks) */
