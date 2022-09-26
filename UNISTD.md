@@ -6,7 +6,7 @@
 
 |Сокр| Определение
 |:--- |:--
-|AIO| POSIX_ASYNCHRONOUS_IO ()
+|AIO| POSIX_ASYNCHRONOUS_IO (Asynchronous I/O)
 |BAR| POSIX_BARRIERS (Barriers)
 |CS | POSIX_CLOCK_SELECTION (Clock Selection)
 |MF | POSIX_MAPPED_FILES (Memory Mapped Files)
@@ -15,9 +15,11 @@
 |SEM| POSIX_SEMAPHORES (Semaphores)
 |SHM| POSIX_SHARED_MEMORY_OBJECTS (Shared Memory Objects)
 |SIG| POSIX_SIGNALS (Signals)
+|SIO| POSIX_SYNCHRONIZED_IO (Synchronized I/O)
 |RTS| POSIX_REALTIME_SIGNALS (Realtime Signals Extension)
 |SPI| POSIX_SPIN_LOCKS (Spin Locks)
 |THR| POSIX_THREADS (Threads)
+|TCT| POSIX_THREAD_CPUTIME (CPU-time clocks)
 |TMR| POSIX_TIMERS (Timers)
 
 - THR Threads, в RTOS представлены треды C11 совместимые, планируется поддержка pthread, без атрибутов
