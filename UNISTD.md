@@ -12,14 +12,16 @@
 |MF | POSIX_MAPPED_FILES (Memory Mapped Files)
 |MPR| POSIX_MEMORY_PROTECTION (Memory Protection)
 |MSG| POSIX_MESSAGE_PASSING (Message Passing)
+|RWL| POSIX_READER_WRITER_LOCKS (Read-Write Locks)
+|RTS| POSIX_REALTIME_SIGNALS (Realtime Signals Extension)
 |SEM| POSIX_SEMAPHORES (Semaphores)
 |SHM| POSIX_SHARED_MEMORY_OBJECTS (Shared Memory Objects)
 |SIG| POSIX_SIGNALS (Signals)
 |SIO| POSIX_SYNCHRONIZED_IO (Synchronized I/O)
-|RTS| POSIX_REALTIME_SIGNALS (Realtime Signals Extension)
 |SPI| POSIX_SPIN_LOCKS (Spin Locks)
 |THR| POSIX_THREADS (Threads)
 |TCT| POSIX_THREAD_CPUTIME (CPU-time clocks)
+|TMO| POSIX_TIMEOUTS (Timeouts)
 |TMR| POSIX_TIMERS (Timers)
 
 - THR Threads, в RTOS представлены треды C11 совместимые, планируется поддержка pthread, без атрибутов
