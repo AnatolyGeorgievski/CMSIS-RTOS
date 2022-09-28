@@ -1,17 +1,22 @@
 # Интерфейсы POSIX.1-2017 поддерживаемые в R3v2 (описание не завершено)
 Поддержка разделена на субгруппы, представленные в стандарте \
 [POSIX] E.1 Subprofiling Option Groups
+
 Поддержка и функционал включаются/отключаются с использованием определений в заголовке <[unistd.h](unistd.h)>.
 Реализация функций синхронизации основана на использовании атомарных не блокирующих операций с счетчиком семафора, см. <[semaphore.h](semaphore.h)>. 
 
 |Сокр| Определение
 |:--- |:--
+|ADV| POSIX_ADVISORY_INFO (Advisory information)
 |AIO| POSIX_ASYNCHRONOUS_IO (Asynchronous I/O)
 |BAR| POSIX_BARRIERS (Barriers)
 |CS | POSIX_CLOCK_SELECTION (Clock Selection)
 |MF | POSIX_MAPPED_FILES (Memory Mapped Files)
 |MPR| POSIX_MEMORY_PROTECTION (Memory Protection)
 |MSG| POSIX_MESSAGE_PASSING (Message Passing)
+|MON| POSIX_MONOTONIC_CLOCK (Monotonic clock)
+|PIO| POSIX_PRIORITIZED_IO (Prioritized input and output)
+|RS | POSIX_RAW_SOCKETS (Raw sockets)
 |RWL| POSIX_READER_WRITER_LOCKS (Read-Write Locks)
 |RTS| POSIX_REALTIME_SIGNALS (Realtime Signals Extension)
 |SEM| POSIX_SEMAPHORES (Semaphores)
@@ -21,8 +26,12 @@
 |SPI| POSIX_SPIN_LOCKS (Spin Locks)
 |THR| POSIX_THREADS (Threads)
 |TCT| POSIX_THREAD_CPUTIME (CPU-time clocks)
+|TPS| POSIX_THREAD_PRIORITY_SCHEDULING (Thread Execution Scheduling)
+|TSH| POSIX_THREAD_PROCESS_SHARED (Process-shared Synchronization)
+|TSP| POSIX_THREAD_SPORADIC_SERVER (Thread Sporadic server)
 |TMO| POSIX_TIMEOUTS (Timeouts)
 |TMR| POSIX_TIMERS (Timers)
+|TYM| POSIX_TYPED_MEMORY_OBJECTS (Typed Memory objects)
 
 - THR Threads, в RTOS представлены треды C11 совместимые, планируется поддержка pthread, без атрибутов
 
