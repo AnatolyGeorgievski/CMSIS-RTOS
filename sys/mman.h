@@ -18,7 +18,7 @@
 #define MS_ASYNC 		2// Perform asynchronous writes.
 #define MS_INVALIDATE 	1// Invalidate mappings.
 #define MS_SYNC 		0// Perform synchronous writes.
-// ADV _POSIX_
+// ADV _POSIX_ADVISORY_INFO
 // symbolic constants for the advice argument to the posix_madvise( ) function as follows:
 #define POSIX_MADV_DONTNEED	0
 /*!< The application expects that it will not access the specified range in the near future. */

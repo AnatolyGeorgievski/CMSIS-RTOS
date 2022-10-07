@@ -56,8 +56,16 @@ extern const int __aeabi_CLOCKS_PER_SEC;
 #define TIME_ACTIVE		3
 #define TIME_THREAD_ACTIVE		4
 // С11 не поддержано в POSIX
-int timespec_get	(struct timespec *ts, int base);
-int timespec_getres	(struct timespec *ts ,int base);
+int  timespec_get	(struct timespec *ts, int base);
+int  timespec_getres(struct timespec *ts, int base);
+static inline
+void timespec_add	(struct timespec *ts, struct timespec *dt){
+	ts->tv_sec += dt->tv_sec, ts->tv_nsec += dt->tv_nsec;
+	if (ts->tv_nsec>=1000000000) {
+		ts->tv_nsec-=1000000000;
+		ts->tv_sec +=1;
+	}
+}
 
 
 clock_t clock(void);

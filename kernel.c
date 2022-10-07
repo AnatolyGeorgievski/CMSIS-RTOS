@@ -102,10 +102,22 @@ void  SysTick_Handler(void)
 		system_uptime.tv_sec++;
 	}
 	system_microsec    += BOARD_RTC_PERIOD;
+#if 0
+	if (current_thread->budget <= system_microsec) {
+		current_thread->budget  = system_microsec = 0;
+		current_thread->budget += BUDGET(current_thread->low_priority);
+		__YIELD();// запросить переключение задач по таймеру
+	}
+#elif 0 // другой вариант
+	if (--current_thread->budget <= 0) {
+		current_thread->budget += BUDGET(current_thread->sched.low_priority);
+		__YIELD();// запросить переключение задач по таймеру
+	}
+#endif
 	if (system_microsec>=1000) {
-		system_microsec-=1000;
+		system_microsec-=1000;// rr_interval;
 		if (osThreadGetPriority(osThreadGetId()) < osPriorityRealtime) {
-			 __YIELD();// запросить переключение задач по таймеру
+			__YIELD();// запросить переключение задач по таймеру
 		}
     }
 }
@@ -121,7 +133,14 @@ clock_t clock(void)
 
 int clock_gettime(clockid_t clock_id, struct timespec *ts)
 {
-	volatile struct timespec *uptime = &system_uptime;
+	volatile struct timespec *uptime;
+	switch (clock_id){
+#if defined(_POSIX_THREAD_CPUTIME) && (_POSIX_THREAD_CPUTIME>0)
+	//case TIME_THREAD_ACTIVE: ts->tv_nsec = current_thread->CPU_time + (CPU_clock() - arrival_time); break;
+#endif
+	default:
+		uptime = &system_uptime;
+	}
 	do {
 		*ts = *uptime;// атомарно?
 	} while (ts->tv_sec != uptime->tv_sec);
@@ -147,7 +166,12 @@ int clock_gettime(clockid_t clock_id, struct timespec *ts)
  */
 int clock_getres(clockid_t clock_id, struct timespec *res)
 {
-	*res =(struct timespec){.tv_nsec =1000*BOARD_RTC_PERIOD};
+#if defined(_POSIX_THREAD_CPUTIME) && (_POSIX_THREAD_CPUTIME>0)
+	if(clock_id == TIME_THREAD_ACTIVE)
+		*res =(struct timespec){.tv_nsec =1000/BOARD_MCK};
+	else
+#endif
+		*res =(struct timespec){.tv_nsec =1000*BOARD_RTC_PERIOD};
 	return 0;
 }
 /*
@@ -221,7 +245,10 @@ int timespec_get(struct timespec *ts, int base)
 	return base;
 }
 int timespec_getres	(struct timespec *ts ,int base){
-	*res =(struct timespec){.tv_nsec =1000*BOARD_RTC_PERIOD};
+	if (base == TIME_THREAD_ACTIVE) {
+		*ts = (struct timespec){.tv_nsec =5};
+	} else
+		*ts = (struct timespec){.tv_nsec =1000*BOARD_RTC_PERIOD};
 	return base;
 }
 #endif
@@ -286,7 +313,7 @@ _Noreturn void MemManage_Handler()
 }
 _Noreturn void UsageFault_Handler()
 {
-#if defined(__ARM_ARCH_8M_MAIN__)
+#if defined(__ARM_ARCH_8M_MAIN__) || defined(__ARM_ARCH_8_1M_MAIN__)
 	_Fault("UsageFault\r\nUFSR", SCB->UFSR);// This register is RES0 if the Main Extension is not implemented
 #else
 	_Fault("UsageFault\r\nSFSR", SCB->CFSR);

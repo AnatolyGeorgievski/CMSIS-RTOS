@@ -103,10 +103,15 @@
 // запуск основной деятельности по сбору данных
 #define R3_SNMP_RUN				0x04
 // календарь
+#define R3_SNMP_SET_TIME		0x05
 #define R3_SNMP_GET_TIMESTAMP	0x85
 // календарь
 #define R3_SNMP_SET_DATE		0x06
 #define R3_SNMP_GET_DATE		0x86
+
+#define R3_SNMP_SET_KEYINFO    (0x04)
+#define R3_SNMP_SET_SECURED    (0x0C)
+#define R3_SNMP_SET_ENCRYPTED  (0x0E)
 
 /* Low-level pin control
   следом идут номер порта (0..2) и номер ноги */

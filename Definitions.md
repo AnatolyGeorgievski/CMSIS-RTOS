@@ -85,6 +85,20 @@ A synchronization object which allows a thread to suspend execution, repeatedly,
 associated predicate becomes true. A thread whose execution is suspended on a condition
 variable is said to be blocked on the condition variable.
 
+
+[3.118] CPU Time (Execution Time)
+
+The time spent executing a process or thread, including the time spent executing system services
+on behalf of that process or thread. If the Threads option is supported, then the value of the
+CPU-time clock for a process is implementation-defined. With this definition the sum of all the
+execution times of all the threads in a process might not equal the process execution time, even
+in a single-threaded process, because implementations may differ in how they account for time
+during context switches or for other reasons.
+
+[3.119] CPU-Time Clock
+
+A clock that measures the execution time of a particular process or thread.
+
 [3.126] Deferred Batch Service
 
 A service that is performed as a result of events that are asynchronous with respect to requests.
@@ -372,14 +386,17 @@ mechanisms, so that an application can ensure that the data being manipulated is
 present on secondary mass storage devices.
 
 [3.389] System
-	An implementation of POSIX.1-2017.
+
+An implementation of POSIX.1-2017.
 	
 [3.394] System Databases
-	An implementation provides two system databases: the "group database" (see also Section
+
+An implementation provides two system databases: the "group database" (see also Section
 [3.188]) and the "user database" (see also Section [3.435]).
 
 [3.404] Thread
-	A single flow of control within a process. Each thread has its own thread ID, scheduling priority
+
+A single flow of control within a process. Each thread has its own thread ID, scheduling priority
 and policy, errno value, floating point environment, thread-specific key/value bindings, and the
 required system resources to support a flow of control. Anything whose address may be
 determined by a thread, including but not limited to static variables, storage obtained via
@@ -387,46 +404,56 @@ malloc( ), directly addressable storage obtained through implementation-defined 
 automatic variables, are accessible to all threads in the same process.
 
 [3.407] Thread-Safe
-	A thread-safe function can be safely invoked concurrently with other calls to the same function,
+
+A thread-safe function can be safely invoked concurrently with other calls to the same function,
 or with calls to any other thread-safe functions, by multiple threads. Each function defined in
 the System Interfaces volume of POSIX.1-2017 is thread-safe unless explicitly stated otherwise.
 Examples are any ``pure’’ function, a function which holds a mutex locked while it is accessing
 static storage, or objects shared among threads.
 
 [3.408] Thread-Specific Data Key
-	A process global handle of type pthread_key_t which is used for naming thread-specific data.
+
+A process global handle of type pthread_key_t which is used for naming thread-specific data.
 Although the same key value may be used by different threads, the values bound to the key by
 pthread_setspecific( ) and accessed by pthread_getspecific( ) are maintained on a per-thread basis
 and persist for the life of the calling thread.
 
 [3.410] Timeouts
-	A method of limiting the length of time an interface will block; see also Section [3.76]
+
+A method of limiting the length of time an interface will block; see also Section [3.76]
 
 [3.411] Timer
-	A mechanism that can notify a thread when the time as measured by a particular clock has
+
+A mechanism that can notify a thread when the time as measured by a particular clock has
 reached or passed a specified value, or when a specified amount of time has passed.
 
 [3.412] Timer Overrun
-	A condition that occurs each time a timer, for which there is already an expiration signal queued
+
+A condition that occurs each time a timer, for which there is already an expiration signal queued
 to the process, expires.
 
 [3.428] Typed Memory Name Space
-	A system-wide name space that contains the names of the typed memory objects present in the
+
+A system-wide name space that contains the names of the typed memory objects present in the
 system. It is configurable for a given implementation.
 
 [3.429] Typed Memory Object
-	A combination of a typed memory pool and a typed memory port. The entire contents of the
+
+A combination of a typed memory pool and a typed memory port. The entire contents of the
 pool are accessible from the port. The typed memory object is identified through a name that
 belongs to the typed memory name space.
 
 [3.430] Typed Memory Pool
-	An extent of memory with the same operational characteristics. Typed memory pools may be
+
+An extent of memory with the same operational characteristics. Typed memory pools may be
 contained within each other.
 
 [3.447] Working Directory (or Current Working Directory)
-	A directory, associated with a process, that is used in pathname resolution for pathnames that do
+
+A directory, associated with a process, that is used in pathname resolution for pathnames that do
 not begin with a <slash> character.
 
 [3.452] Zombie Process
-	The remains of a live process (see Section [3.210]) after it terminates (see Section [3.303]) 
+
+The remains of a live process (see Section [3.210]) after it terminates (see Section [3.303]) 
 and before its status information is consumed by its parent process.

@@ -28,8 +28,7 @@
 //#include "r3v2protocol.h"
 //#include "r3rtos.h"
 //#include <string.h>
-
-static osService_t *services = NULL;
+//static osService_t *services = NULL;
 
 static int main_weak()
 {
@@ -141,8 +140,8 @@ extern void osServiceWorkFlow(void);
 		(void) cl_command_queue_process (command_queue);
 #endif
         if (osFeature_MainThread) {
-			osThreadYield();// отдыхаем до следующего прерывания
-			//__WFE();// если тред только один, начинаются тормоза при обработке модулей.
+			//osThreadYield();// отдыхаем до следующего прерывания
+			__WFE();// если тред только один, начинаются тормоза при обработке модулей.
 		}
 	}
 	while(1) ;

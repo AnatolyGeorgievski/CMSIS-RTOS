@@ -79,7 +79,8 @@ MCAPI provides three modes of communication: messages, packets, scalars
 //#include "r3rtos.h"
 #include <stdlib.h>
 #include <stdnoreturn.h>
-
+#include <unistd.h>
+#include <sys/limits.h>
 
 //const int __aeabi_SIGTERM = 15;
 
@@ -397,7 +398,7 @@ int thrd_sleep(const struct timespec *duration, struct timespec *remaining)
 			*remaining = (struct timespec){0};
 	}
 	osEvent_t* event = &current_thread->process.event;
-	return event->status != osEventTimeout?-1:0;
+	return event->status & osEventTimeout?-1:0;
 }
 /*! c11 */
 /*
@@ -524,7 +525,8 @@ osStatus osThreadNotify(osThreadId thread_id) PRIVILEGED_FUNCTION;
 osStatus osThreadNotify(osThreadId thread_id)
 {
 	// \TODO вставить в очередь с учетом приоритета
-	if (TCB_PTR(thread_id) != current_thread) {// если всего два треда, то не надо мутить 
+	TCB* tcb = TCB_PTR(thread_id);
+	if ((tcb) != current_thread) {// если всего два треда, то не надо мутить 
 /*
 		volatile void** ptr = &current_thread->next;
 		thread_id->next = atomic_pointer_exchange(ptr, thread_id->next);
@@ -538,6 +540,8 @@ osStatus osThreadNotify(osThreadId thread_id)
 	} else {
 		SCB->ICSR |= SCB_ICSR_PENDSVCLR_Msk;// запретить вызов PendSV
 	}
+//	tcb->pending++;
+//	tcb->budget += BUDGET(tcb->priority);
 	return osOK;	
 }
 #if 1
@@ -625,7 +629,7 @@ void PendSV_Handler()
 		"ldmia    r0!,{r4-r7}\n\t"            // Restore R4..R7
 		"bx		  r3\n\t" // выход из обработчика
 	:::"memory");	
-#  elif defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__)
+#  elif defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__) || defined(__ARM_ARCH_8_1M_MAIN__)
     __asm volatile(//  при входе сохранены регистры R0-R3,R12,LR,PC,xPSR
 		"mrs       r0, psp\n\t"
 		"tst       lr, #0x10\n\t"                     // if FPU context is active
@@ -647,13 +651,52 @@ void PendSV_Handler()
 #endif
 }
 
-/*! \brief Вернуть значение в регистре R0 - выход из ожидания
-на стеке: R4-R11, EXEC_RETURN, R0-R3,R12,LR,PC,xPSR
-возможно надо резервировать место под регистры S0-15, FPSCR -- тогда не работает
+// Event Queue
+/* Данная реализация представляет собой рчередь FIFO 
+	Для EDF нужна очередь с приоритетами
  */
-static inline void _RETURN(uint32_t *sp, uintptr_t value) {
-	sp[-9] = value;
+typedef struct {
+	int signo;
+	osThreadId thread_id;
+	clock_t activation_time;
+} sig_data_t;
+typedef struct {
+		volatile int count;// начальное значение _POSIX_SIGQUEUE_MAX
+		uint16_t wr_pos;
+		uint16_t rd_pos;
+		uint32_t  ready[1];
+		sig_data_t  buf[_POSIX_SIGQUEUE_MAX];// 
+} event_queue_t;
+static event_queue_t signal_queue= {.count=0};
+static inline uint32_t CPU_clock(){
+    return DWT->CYCCNT;
 }
+
+int sig_queue_put(event_queue_t* q, osThreadId thread_id, int signo){
+    if (!semaphore_enter(&q->count)){// FIFO переполнено
+        return -1;
+    }
+	int n = atomic_fetch_add(&q->wr_pos, 1) & 0x1F;
+	sig_data_t * sig = &q->buf[n];
+	sig->signo = signo;
+	sig->thread_id = thread_id;
+	sig->activation_time = CPU_clock();
+	atomic_fetch_or(&q->ready[0], 1u<<n);
+	return n;
+}
+static inline void* sig_queue_try(event_queue_t* q){
+	int n = q->rd_pos & 0x1F;
+	int flag = atomic_fetch_and(&q->ready[0], ~(1u<<n));
+	return (flag & (1u<<n))? &q->buf[n]: NULL;
+}
+static inline int sig_queue_next(event_queue_t* q){
+	int count = atomic_fetch_add(&q->count, 1);
+	q->rd_pos++;
+	return count;
+}
+
+static volatile int pid_signals = 0;// в отдельный сегмент
+
 /*! \brief Планировщик процессов 
 	\ingroup _system
 	\param [in] stk указатель на стек процесса
@@ -671,10 +714,50 @@ static inline void _RETURN(uint32_t *sp, uintptr_t value) {
 unsigned int * osThreadScheduler(unsigned int * stk)
 {
 	current_thread->sp = stk;// вынести эту операцию в PendSV
-	// планировщик задач
+	//current_thread->CPU_time += execution_time;
 	TCB* thr = NULL;
+#if 1
+// Сигналы в очереди должны быть организованы по приоритетам
+// Приоритет EDF, Erlier deadline First
+	sig_data_t *sig;
+	while ((sig = sig_queue_try(&signal_queue))!=NULL) {
+		thr = TCB_PTR(sig->thread_id);
+		uint32_t sig_mask = 1u<<sig->signo;
+		if (thr==NULL) {// сигнал адресован процессу
+#if defined(_POSIX_SIGNALS) && (_POSIX_SIGNALS>0)
+			sig_mask &= atomic_fetch_or(&pid_signals, sig_mask);
+			if (sig_mask) break; // не доставлен
+#endif
+		} else {
+#if defined(_POSIX_THREAD_SPORADIC_SERVER) && (_POSIX_THREAD_SPORADIC_SERVER>0)
+			// Deffered Service/Sporadic Service
+			if ((uint32_t)(CPU_clock() - sig->activation_time) < thr->sched.repl_period){
+				break;// рано, сигнал не доставлен
+			}
+#endif
+			sig_mask &= atomic_fetch_or(&thr->process.signals, sig_mask);
+			if (sig_mask) {// сигнал не обработан
+				break;
+			} else {// начислить бюджет, событие доставлено
+				// atomic_fetch_sub(&thr->sig_pending, 1);// уменьшили число не обработаных событий 
+				thr->priority= thr->sched.priority;
+					thr->budget = BUDGET(thr, thr->priority);
+				if (thr->budget > thr->sched.initial_budget)// ограничено
+					thr->budget = thr->sched.initial_budget;
+				if (thr->next==NULL) 
+					thr->next = current_thread;// возврат к предыдущему
+				//if((thr->process.event.status & (osEventRunning))==0)
+					thr->process.event.status |= (osEventSignal|osEventRunning);
+			}
+		}
+		sig_queue_next(&signal_queue);
+		if (thr) break;
+	}
+	if (thr==NULL)
+#endif
+	// планировщик задач
 	do {
-		/* чтобы можно было запускать несколько плнировщиков, это должна быть служба, 
+		/* чтобы можно было запускать несколько планировщиков, это должна быть служба, 
 		контекст привязан к ядру для которого выполняется планирование, доступ к списку задач - атомарный
 		*/
 #if 0
@@ -693,6 +776,16 @@ unsigned int * osThreadScheduler(unsigned int * stk)
         if (event->status & (osEventSignal)) 	{// ожидаем сигналы
 //			volatile int* ptr = event->value.p;
 //			uint32_t signals = *ptr & event->value.signals;
+#if 0 //defined(_POSIX_REALTIME_SIGNALS) && (_POSIX_REALTIME_SIGNALS>0)
+// доставка сигналов в тред через очередь сигналов
+			if (pid_signals & thr->process.sig_mask) {// доставка сигналов 
+				uint32_t sig_mask = ~thr->process.signals & thr->process.sig_mask;
+				sig_mask &= atomic_fetch_and(&pid_signals, ~sig_mask);
+				if (sig_mask) {
+					atomic_fetch_or(&thr->process.signals, sig_mask);
+				}
+			}
+#endif
 			// 31.08.2022 
 			uint32_t signals = thr->process.signals & event->value.signals;
 			// uint32_t signals = thr->process.signals & thr->process.sig_mask; - хочу так
@@ -701,7 +794,6 @@ unsigned int * osThreadScheduler(unsigned int * stk)
 				{
 					event->value.signals =(signals); // это может лишняя операция
 					event->status = osEventSignal|osEventRunning;
-					//_RETURN(thr->sp, event->status);// Выход из ожидания - установить флаг и 
 					break;
 				}
             }

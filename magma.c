@@ -8,6 +8,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
+#include <arpa/inet.h>// ntohs
 
 #ifdef __ARM_NEON
 #include <arm_neon.h>
@@ -29,20 +30,21 @@ uint8_t sbox[8][16] = {// см. Gost28147_TC26_paramZ
 #define BEXTR(x, n, len) (((x) >> (n)) & ((1 << (len))-1))
 
 #pragma GCC optimize("O3")
-
-static inline uint64_t __attribute__((always_inline)) htonll(uint64_t a)
-{
+#if defined(__BYTE_ORDER__) && (__BYTE_ORDER__==__ORDER_BIG_ENDIAN__)
+#define htonll(a) (a)
+#define htonl(a) (a)
+#define htons(a) (a)
+#else // __ORDER_LITTLE_ENDIAN__
+static inline uint64_t __attribute__((always_inline)) htonll(uint64_t a){
     return __builtin_bswap64(a);// LE
 }
-static inline uint32_t ntohl (uint32_t a)
-{
+static inline uint32_t ntohl (uint32_t a){
     return __builtin_bswap32(a);// LE
 }
-static inline uint16_t htons (uint16_t a)
-{
+static inline uint16_t htons (uint16_t a){
     return __builtin_bswap16(a);// LE
 }
-
+#endif
 static inline uint32_t t(uint32_t a)
 {
 	uint32_t r=0;

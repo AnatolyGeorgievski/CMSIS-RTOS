@@ -380,14 +380,12 @@ static int fmt_hex(char *buf, int remains, int width, int precision, unsigned lo
 	int i=0;
 	if (width<num) width= num;
 	if (precision<num) precision=num;
-	//if (width!=0)
-	if (0){// это работает, только место занимает. Я решил место экономить
-		//printf("w=%d.%d n=%d\n", width, precision, num);
-		int padding =0;
-		if (flags->left_justified==0 && precision<width) {
-			padding = width-precision;
-		}
-		for (;i<padding;i++) *buf++ = ' ';
+	int padding =0;
+	// это работает, только место занимает. Я решил место экономить
+	if (flags->left_justified==0 && precision<width) {
+		padding = width-precision;
+		uint8_t pad = flags->zero_padded? '0': ' ';
+		for (;i<padding;i++) *buf++ = pad;
 		precision+=padding;
 	}
 	for (;i<precision-num;i++) *buf++ = '0';
@@ -395,7 +393,7 @@ static int fmt_hex(char *buf, int remains, int width, int precision, unsigned lo
 		char c = (val>>(32-4));
 		*buf++ = c + (c>=10? 'A'-10:'0');
 	}
-	if (0 && flags->left_justified){// это тоже работает
+	if (flags->left_justified){// это тоже работает
 		for (;i<width;i++) *buf++ = ' ';
 	}
 	return i;
@@ -464,8 +462,8 @@ length--;
         }
         else { // Token delimiter
 			flags = (Pflags){0};
-//            flags.left_justified = 0;
-//            flags.zero_padded = 0;
+            flags.left_justified = 0;
+            flags.zero_padded = 0;
 //			  flags.mod =MOD_NO;
 //            flags.l_mod = 0;
 //            flags.ll_mod = 0;
@@ -473,7 +471,7 @@ length--;
             pFormat++;
             remains = length - size;
             if (*pFormat == '-') {// Parse filler
-                //flags.left_justified = 1;
+                flags.left_justified = 1;
                 pFormat++;
             }
 			
@@ -490,7 +488,7 @@ length--;
                 pFormat++;
             }
             if (*pFormat == '0') {// Parse filler
-                //flags.zero_padded = 1;
+                flags.zero_padded = 1;
                 pFormat++;
             }
 			if (*pFormat == '*') { // Parse width

@@ -69,7 +69,7 @@ void setbuf	(FILE *restrict, char *restrict);
 int setvbuf	(FILE *restrict, char *restrict, int, size_t);
 int snprintf(char *restrict, size_t, const char *restrict, ...)
                _ATTRIBUTE ((__format__ (__printf__, 3, 4)));
-int sprintf	(char *restrict, const char *restrict, ...)
+int  sprintf(char *restrict, const char *restrict, ...)
                _ATTRIBUTE ((__format__ (__printf__, 2, 3)));
 int sscanf	(const char *restrict, const char *restrict, ...)
 			   _ATTRIBUTE ((__format__ (__scanf__, 2, 3)));

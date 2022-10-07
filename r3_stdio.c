@@ -61,6 +61,7 @@ int 	fclose	(FILE *f){
 	\arg r+ or rb+ or r+b Open file for update (reading and writing).
 	\arg w+ or wb+ or w+b Truncate to zero length or create file for update.
 	\arg a+ or ab+ or a+b Append; open or create file for update, writing at end-of-file.
+	\arg x 
 */
 FILE *	fopen	(const char *restrict path, const char *restrict mods)
 {
@@ -78,7 +79,8 @@ FILE *	fopen	(const char *restrict path, const char *restrict mods)
 		oflag |= O_RDWR;
 		mods++;
 	}
-	if (mods[0]=='b') oflag |= O_BINARY;//
+	if (mods[0]=='b') oflag |= O_BINARY, mods++;//
+	if (mods[0]=='x') oflag |= O_EXCL, mods++;//
 	
 	int fildes = device_flag_alloc((void*)NULL);
 
@@ -204,3 +206,60 @@ int rename(const char *old, const char *new){
 	return 0;
 }
 //!\}
+#if defined(_POSIX_FILE_LOCKING) && (_POSIX_FILE_LOCKING>0)
+static inline int  _unlock_file(FILE* f, pthread_t owner){
+	volatile int *ptr = &f->lock;
+	int count=0;
+	if (f->owner != owner) do {
+		count = atomic_int_get(ptr);
+		if (count==0) {
+			f->owner =(pthread_t)0;// разблокировать может только владелец
+			atomic_mb();
+		}
+	} while(!atomic_int_compare_and_exchange(ptr, count, count+1));
+	
+	return count;
+}
+static inline int _trylock_file(FILE* f, pthread_t owner){
+	volatile int *ptr = &f->lock;
+	int count;
+	do {
+		count = atomic_int_get(ptr);
+		if (count<=0 && f->owner!= owner) break;// заблокировано
+	} while(!atomic_int_compare_and_exchange(ptr, count, count-1));
+	if (count> 0 ){ 
+		f->owner = owner;
+		// atomic_mb();
+	}
+	return count;
+}
+
+/*! 
+	\return zero for success and non-zero to indicate that the lock
+cannot be acquired.
+ */
+int ftrylockfile(FILE *f){
+	pthread_t self = pthread_self();
+	int count = _trylock_file(f, self);
+	return (count<=0);
+}
+void funlockfile(FILE *f){
+	pthread_t self = pthread_self();
+	(void) _unlock_file(f, self);
+}
+void flockfile(FILE *f){
+	pthread_t self = pthread_self();
+	int count = _trylock_file(f, self);
+	if (count<=0) {
+		osEventWait(osEventSemaphre, &f->lock, osWaitForever);
+	}
+}
+#else
+void flockfile(FILE *f){
+}
+void funlockfile(FILE *f){
+}
+int ftrylockfile(FILE *f){
+	return 0;
+}
+#endif

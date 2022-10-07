@@ -8,7 +8,6 @@
 typedef struct _DeviceClass DeviceClass_t;
 
 #define MAPPED_DEVICE(a) (((Mapped_t*)(a) -1)->dev)
-#define MAPPED_ADDR(a) 	  ((Mapped_t*)(a) -1)
 typedef struct _Mapped Mapped_t;
 struct _Mapped {
 	int fildes;
@@ -127,14 +126,7 @@ int posix_typed_mem_open(const char *path, int oflags, int tflag){
 
 }
 int posix_mem_offset(const void *restrict addr, size_t len,
-	off_t *restrict off, size_t *restrict contig_len, int *restrict fildes)
-{
-	Mapped_t* map = MAPPED_ADDR(addr);
-	if(fildes) *fildes = map->fildes;//map->fildes;
-	if(off) *off = map->off;
-	if(contig_len) *contig_len = map->len;
-	return 0;
-}
+	off_t *restrict off, size_t *restrict contig_len, int *restrict fildes);
 int posix_typed_mem_get_info(int fildes, struct posix_typed_mem_info * info){
 	Device_t* dev = DEV_PTR(fildes);
 	

@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <sys/types.h>
+//#include <sys/limits.h>
 #include <errno.h>
 /*! \defgroup _posix Portable Operating System Interface (POSIX®)
 
@@ -23,6 +24,7 @@ POSIX определяет набор профилей поддерживаем�
 #define _POSIX_FILE_ATTRIBUTES					1
 #define _POSIX_FILE_ATTRIBUTES_FD				1
 #define _POSIX_FD_MGMT							1
+#define _POSIX_SIGNALS							1
 // [POSIX] D.3.4 Configuration Options (System Interfaces)
 // unistd.h  standard symbolic constants and types 
 //  −1, the option is not supported for compilation −1, 0, or 200809L.
@@ -65,7 +67,7 @@ POSIX определяет набор профилей поддерживаем�
 #define _POSIX_THREAD_PRIORITY_SCHEDULING       200809L
 #define _POSIX_THREAD_PROCESS_SHARED            200809L
 #define _POSIX_THREAD_SAFE_FUNCTIONS            200809L
-/* #define _POSIX_THREAD_SPORADIC_SERVER            -1 */
+#define _POSIX_THREAD_SPORADIC_SERVER            	-1
 #define _POSIX_THREADS                          200809L
 #define _POSIX_TIMEOUTS                         200809L
 #define _POSIX_TIMERS                           200809L

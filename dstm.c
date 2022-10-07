@@ -1,4 +1,37 @@
 /*! Transactional memory */
+/*! \see [ACLE](https://github.com/ARM-software/acle) 
+	Arm C Language Extensions, Transactional Memory Extension (TME) intrinsics,Version: 2022Q2 
+	
+	Hardware Transactional Memory
+
+Hardware Transactional Memory (HTM) 
+	allows hardware extensions to ensure that memory accesses and code execution 
+	are atomic around specific code areas that are defined by the code developer.
+
+Here are the new instructions that are added to the PE for TME:
+
+    TSTART <Xd>  ; Transaction start instruction
+    TCOMMIT   ; Transaction code section end
+    TCANCEL <#imm6> ; Transaction cancel with reason code
+    TTEST   : Transaction status and nesting level test
+
+	*/
+#if defined(__ARM FEATURE TME)
+#include <arm_acle.h>
+#define _TMFAILURE_REASON 	0x00007fffu
+#define _TMFAILURE_RTRY 	0x00008000u
+#define _TMFAILURE_CNCL 	0x00010000u
+#define _TMFAILURE_MEM 		0x00020000u
+#define _TMFAILURE_IMP 		0x00040000u
+#define _TMFAILURE_ERR 		0x00080000u
+#define _TMFAILURE_SIZE 	0x00100000u
+#define _TMFAILURE_NEST 	0x00200000u
+#define _TMFAILURE_DBG 		0x00400000u
+#define _TMFAILURE_INT 		0x00800000u
+#define _TMFAILURE_TRIVIAL 	0x01000000u
+uint64_t __tstart (void);
+
+#endif
 enum _TMStatus {
 	TM_ABORT, TM_ACTIVE, TM_COMMIT
 };

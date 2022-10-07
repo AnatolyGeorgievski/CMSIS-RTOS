@@ -27,13 +27,25 @@ struct _Process {
 	void* result;
 //	pid_t pid;  уникальный идентификатор процесса
 };
+struct _sched { // \see  sched_param structure defined in <sched.h>
+	int8_t priority;//!< Если не используется SS остается только атрибут priority 
+	int8_t low_priority;
+	int initial_budget;
+	int repl_period;
+};
+#define BUDGET(t,prio) (516+(prio<<4))
 struct _thread {
-	void* sp;		//!< указатель стека, временно хранится пока тред неактивен
+	void* sp;		//!< указатель стека, временно хранится пока тред не активен
 	struct _thread* next;		//!< указатель на следующий блок TCB или на себя, если в списке один элемент
-	struct _thread* parent;		//!< указатель на родительский процесс
+//	struct _thread* parent;		//!< указатель на родительский процесс
 	struct _Process process;
+	struct _sched   sched;
+#if defined(_POSIX_THREAD_CPUTIME) && (_POSIX_THREAD_CPUTIME>0)
+	struct timespec CPU_time;
+#endif
+	int budget;
 	int error_no;	//!< ошибки см POSIX errno.h
-	int8_t sig_no;		//!< Номер сигнала по случаю завершения
+//	int8_t sig_no;		//!< Номер сигнала по случаю завершения
 	int8_t priority;	//!< приоритет исполнения
 	const void* attr;	//!< Атрибуты треда
 	void* tss;	//!< Thread Specific Storage

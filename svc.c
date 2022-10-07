@@ -67,7 +67,7 @@ void svc_handler_callback(SvcCallback cb, int svc_number)
 // __attribute__(( naked ))
 void SVC_Handler()
 {
-#if defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__)
+#if defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__) || defined(__ARM_ARCH_8_1M_MAIN__)
 	register SvcCallback* cbs = svcs;
     __asm volatile(
 		"mrs  r0, psp\n\t"

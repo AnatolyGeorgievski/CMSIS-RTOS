@@ -148,9 +148,9 @@ used throughout the whole project.
 /// \note MUST REMAIN UNCHANGED: \b osFeature_xxx shall be consistent in every CMSIS-RTOS.
 #define osFeature_MainThread   1       ///< main thread      1=main can be thread, 0=not available
 #define osFeature_Modules      1       ///< R3 модули
-#define osFeature_Services     1       ///< R3 сервисы, процессы
+#define osFeature_Services     0       ///< R3 сервисы, процессы
 #define osFeature_OpenCL       0       ///< R3 модули
-#define osFeature_ThreadFlags  1       ///< Флаги для RTOSv2
+#define osFeature_ThreadFlags  0       ///< Флаги для RTOSv2
 #define osFeature_ThreadCount  8       ///< R3 максимальное число тредов в системе
 #define osFeature_ThreadPool   0       ///< R3 osThreadPool functions: 1=available, 0=not available
 #define osFeature_Condition    0       ///< R3 osCond functions: 1=available, 0=not available

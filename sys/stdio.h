@@ -20,7 +20,7 @@ typedef struct _Device Device_t;
 struct _Device {
 	dev_t  dev_id:8; 
 	ino_t  ino	:24;
-	mode_t mode	:16;
+	mode_t mode	:16;// 4 старшие бита содержат класс устройства
 
 	uid_t 	uid:8;		// User ID of file.
 	gid_t 	gid:8;		// Group ID of file.
@@ -46,10 +46,15 @@ struct _OpenFileDescription {
 	int fildes:8;
 //	int8_t 	prio;	// Request priority offset.
 	
-	uint32_t 	nbytes; // Length of transfer.
+//	uint32_t 	nbytes; // Length of transfer.
 	off_t	offset;	// File offset.
 //	volatile void *  buf;	// Location of buffer.
-	struct _File *file; 	//
+	struct _File *file; 	// Это не обязательно файл
+#if defined(_POSIX_FILE_LOCKING) && (_POSIX_FILE_LOCKING>0)
+// Thread-Safe Stdio Locking
+	volatile int lock;		// блокировка доступа flockfile, рекурсивный мьютекс
+	volatile pthread_t owner;	// владелец блокировки
+#endif//_POSIX_FILE_LOCKING 
 };
 struct _File {
 	void* 	phandle;// на носителе
@@ -77,6 +82,7 @@ struct _DeviceClass {
 	off_t 	(*seek )(void*, off_t offset, int whence);
 	off_t 	(*trunc)(void*, off_t);
 	int 	(*close)(void*);
+	// mmap, ioctl
 };
 
 // системно-зависимые функции:

@@ -16,6 +16,7 @@ typedef struct _thread osThread_t;
 typedef struct os_mutex_cb mtx_t;
 struct os_mutex_cb {
 	volatile int count;
+	thrd_t owner;// идентификатор треда
 	// тип мьютекса mtx_plain mtx_recursive
 };
 static inline uint32_t div1M(uint32_t v) {// деление на миллион, справедливо для все целых uint32_t
@@ -28,7 +29,9 @@ static inline uint32_t div1M(uint32_t v) {// деление на миллион,
 
 int  mtx_unlock (mtx_t *mtx) 
 {
-	semaphore_init(&mtx->count, 1);
+//	thrd_t thr = thrd_current();
+//	if (mtx->owner!=thr ) return thrd_error;
+	semaphore_leave(&mtx->count);
 	__DMB();
 	return thrd_success;
 }
@@ -43,25 +46,12 @@ int  mtx_unlock (mtx_t *mtx)
 */
 int  mtx_init(mtx_t *mtx, int type)
 {
+	mtx->owner = NULL;
 	semaphore_init(&mtx->count, 1);
 	return thrd_success;
 }
-int  mtx_lock(mtx_t *mtx)
-{
-	int count = semaphore_enter(&mtx->count);
-/*	int count;
-	do {// атомарно добавляем в список
-		count = atomic_int_get(mtx);
-	} while (!atomic_int_compare_and_exchange(mtx, count, 0)); */
-	if (count) return thrd_success;
-
-//	osEvent event = {.status = osEventSemaphore,.value ={.p = (void*)&mtx->count}};
-//	osEventWait(&event, osWaitForever);
-// надо обратно сделать функцию
-	svc3(SVC_EVENT_WAIT, osEventSemaphore, (void*)&mtx->count, osWaitForever);
-	thrd_t thr = thrd_current();
-	int status = THREAD_PTR(thr)->process.event.status;
-	return (status & osEventSemaphore)?thrd_success:thrd_timedout;
+int mtx_lock(mtx_t *mtx) {
+	return mtx_timedlock(mtx, NULL);
 }
 /*! 
 The \b mtx_timedlock function endeavors to block until it locks the mutex pointed to by
@@ -69,20 +59,21 @@ The \b mtx_timedlock function endeavors to block until it locks the mutex pointe
 mutex shall support timeout. If the operation succeeds, prior calls to \b mtx_unlock on
 the same mutex shall synchronize with this operation.
 */
-int  mtx_timedlock(mtx_t *restrict mtx, const struct timespec *restrict ts)
-{
-	int count = semaphore_enter(&mtx->count);
-	if (count) return thrd_success;
+int  mtx_timedlock(mtx_t *restrict mtx, const struct timespec *restrict ts) {
+	int res = mtx_trylock(mtx);
+	if (res==thrd_busy) {
+		svc4(SVC_CLOCK_WAIT, osEventSemaphore, (void*)&mtx->count, TIME_UTC, ts);
+		thrd_t thr = thrd_current();
+		int status = THREAD_PTR(thr)->process.event.status;
+		if (status & osEventSemaphore) {
+			mtx->owner = thr;
+			res = thrd_success;
+		} else
+		if (status & osEventTimeout  ) res = thrd_timedout;
+		// else res = thrd_error;// может прерываться 
+	}
+	return res;
 
-	uint32_t interval = (ts->tv_sec*1000000 + ts->tv_nsec/1000) - clock();
-	svc3(SVC_EVENT_WAIT, osEventSemaphore, (void*)&mtx->count, interval);
-	thrd_t thr = thrd_current();
-	int status = THREAD_PTR(thr)->process.event.status;
-	return (status & osEventSemaphore)?thrd_success:thrd_timedout;
-//	osEvent event = {.status = osEventSemaphore,.value ={.p = (void*)&mtx->count}};
-//	return osEventTimedWait(&event, ts);
-	//return (event.status & osEventTimeout)?thrd_timedout: thrd_success;
-	
 }
 /*! \brief Неблокирующий вызов мьютекса
 
@@ -96,10 +87,20 @@ fail to lock an unused resource, in which case it returns thrd_busy.
 int  mtx_trylock(mtx_t *mtx)
 {
 	int count = semaphore_enter(&mtx->count);
-	return (count)? thrd_success: thrd_busy;
+	thrd_t thr = thrd_current();
+	if (count>0) {
+		mtx->owner = thr;
+		return thrd_success;
+	}
+	if (mtx->owner == thr) {
+		atomic_fetch_sub(&mtx->count, 1);
+		return thrd_success;
+	}
+	return thrd_busy;
 }
 void mtx_destroy(mtx_t *mtx)
 {
+	mtx->owner = NULL;
 	semaphore_init(&mtx->count, 0);
 }
 //! \}

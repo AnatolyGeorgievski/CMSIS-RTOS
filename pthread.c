@@ -74,21 +74,20 @@ static void* atomic_list_push(volatile void** ptr, void* data){
 	} while (!atomic_pointer_compare_and_exchange(ptr, next, item));
 	return next;
 }
-static int osEventWait(int type, uint32_t value, uint32_t interval)
+static int osEventClockWait(int type, uint32_t value, clockid_t clock_id, const struct timespec * restrict ts)
 {
-	int status = svc3(SVC_EVENT_WAIT, type, value, interval);
+	int status = svc4(SVC_CLOCK_WAIT, type, value, clock_id, ts);
 	pthread_t thr = pthread_self();
 	status = thr->process.event.status;
 	if (status & type) return 0;
 	if (status & osEventTimeout) return ETIMEDOUT;
 	return EINTR;
 }
-static int osEventTimedWait(int type, uint32_t value, const struct timespec * restrict ts)
-{
-//	struct timespec *now;
-//	clock_gettime(CLOCK_REALTIME, &now);
-	uint32_t interval = (ts->tv_sec* 1000000U + ts->tv_nsec/1000) - clock();
-	return osEventWait(type, value, interval);
+static inline int osEventWait(int type, uint32_t value) {
+	return osEventClockWait(type, value, CLOCK_REALTIME, NULL);
+}
+static inline int osEventTimedWait(int type, uint32_t value, const struct timespec * restrict ts) {
+	return osEventClockWait(type, value, CLOCK_REALTIME, ts);
 }
 /*!	\ingroup _posix
 
@@ -183,7 +182,7 @@ int pthread_create(pthread_t *restrict thread, const pthread_attr_t *restrict at
 		thr = malloc(sizeof(osThread_t));// надо выделить shared
 		__builtin_bzero(thr, sizeof(osThread_t));
 	}
-	thr->parent = (thread==NULL)? NULL: pthread_self();// detached state
+//	thr->parent = (thread==NULL)? NULL: pthread_self();// detached state
 	thr->process.func   = start_routine;
 	thr->process.arg    = arg;
 	thr->process.sig_mask = 0;
@@ -196,11 +195,11 @@ int pthread_create(pthread_t *restrict thread, const pthread_attr_t *restrict at
 	return 0;
 }
 int pthread_detach(pthread_t thread) {
-	thread->parent = NULL; // self
+//	thread->parent = NULL; // self
 }
 int pthread_join(pthread_t thread, void **value_ptr){
 //	thread->parent = pthread_self();
-	osEventWait(osEventSignal, 1<<thread->sig_no, osWaitForever);
+//	osEventWait(osEventSignal, 1<<thread->sig_no);
 	*value_ptr = thread->process.result;
 	
 	//удалить или использовать повторно
@@ -241,19 +240,22 @@ int pthread_cond_init(pthread_cond_t *restrict cond,
 	//cond->attr = attr;
 	return 0;
 }
-int pthread_cond_timedwait(pthread_cond_t *restrict cond,
-	pthread_mutex_t *restrict mutex, const struct timespec *restrict abstime)
+int pthread_cond_clockwait(pthread_cond_t *restrict cond,
+	pthread_mutex_t *restrict mutex, clockid_t clock_id, const struct timespec *restrict abstime)
 {
 	void* prev = atomic_list_push((volatile void**)&cond->mtx, mutex);
 	if (prev==(void*)~0) return EOWNERDEAD;
-	return osEventTimedWait(osEventSemaphore, (uint32_t)&mutex->count, abstime);
+	return osEventClockWait(osEventSemaphore, (uint32_t)&mutex->count, clock_id, abstime);
+}
+int pthread_cond_timedwait(pthread_cond_t *restrict cond,
+	pthread_mutex_t *restrict mutex, const struct timespec *restrict abstime)
+{
+	return pthread_cond_clockwait(cond, mutex, CLOCK_REALTIME, abstime);
 }
 int pthread_cond_wait(pthread_cond_t *restrict cond,
 	pthread_mutex_t *restrict mutex)
 {
-	void* prev = atomic_list_push((volatile void**)&cond->mtx, mutex);
-	if (prev==(void*)~0) return EOWNERDEAD;
-	return osEventWait(osEventSemaphore, (uint32_t)&mutex->count, osWaitForever);
+	return pthread_cond_clockwait(cond, mutex, CLOCK_REALTIME, NULL);
 }
 int pthread_mutex_destroy(pthread_mutex_t *mtx){
 	mtx->count = 0;
@@ -264,15 +266,16 @@ int pthread_mutex_init(pthread_mutex_t *restrict mtx, const pthread_mutexattr_t 
 	//mtx->attr = attr;
 	return 0;
 }
-int pthread_mutex_lock(pthread_mutex_t *mtx){
+int pthread_mutex_clocklock(pthread_mutex_t *restrict mtx, clockid_t clock_id, const struct timespec *restrict abstime){
 	int count = semaphore_enter(&mtx->count);
 	if (count>0) return 0;
-	return osEventWait(osEventSemaphore, (uint32_t)&mtx->count, osWaitForever);
+	return osEventClockWait(osEventSemaphore, (uint32_t)&mtx->count, clock_id, abstime);
 }
 int pthread_mutex_timedlock(pthread_mutex_t *restrict mtx, const struct timespec *restrict abstime){
-	int count = semaphore_enter(&mtx->count);
-	if (count>0) return 0;
-	return osEventTimedWait(osEventSemaphore, (uint32_t)&mtx->count, abstime);
+	return pthread_mutex_clocklock(mtx, CLOCK_REALTIME, abstime);
+}
+int pthread_mutex_lock(pthread_mutex_t *mtx){
+	return pthread_mutex_clocklock(mtx, CLOCK_REALTIME, NULL);
 }
 int pthread_mutex_trylock(pthread_mutex_t *mtx){
 	int count = semaphore_enter(&mtx->count);
@@ -363,19 +366,20 @@ int  sem_init(sem_t * sem, int pshared, unsigned value){
 int  sem_post(sem_t * sem){
 	return semaphore_leave(&sem->count);
 }
-int  sem_timedwait(sem_t * sem, const struct timespec *restrict ts){
+int  sem_clockwait(sem_t *restrict sem, clockid_t clock_id, const struct timespec *restrict ts) {
 	int count = semaphore_enter(&sem->count);
 	if (count >0) return 0;
-	return osEventTimedWait(osEventSemaphore, (uint32_t)&sem->count, ts);
+	return osEventClockWait(osEventSemaphore, (uint32_t)&sem->count, clock_id, ts);
+}
+int  sem_timedwait(sem_t * sem, const struct timespec *restrict ts){
+	return sem_clockwait(sem, CLOCK_REALTIME, ts);
+}
+int  sem_wait(sem_t * sem){
+	return sem_clockwait(sem, CLOCK_REALTIME, NULL);
 }
 int  sem_trywait(sem_t * sem){
 	int count = semaphore_enter(&sem->count);
 	return (count >0)? 0: EBUSY;
-}
-int  sem_wait(sem_t * sem){
-	int count = semaphore_enter(&sem->count);
-	if (count >0) return 0;
-	return osEventWait(osEventSemaphore, (uint32_t)&sem->count, osWaitForever);
 }
 #if defined(_POSIX_THREAD_PROCESS_SHARED) && (_POSIX_THREAD_PROCESS_SHARED > 0)
 #include <stdarg.h>
@@ -433,7 +437,7 @@ int   pthread_spin_init(pthread_spinlock_t *lock, int pshared){
 int   pthread_spin_lock(pthread_spinlock_t *lock){
 	int count = semaphore_enter(&lock->count);
 	if (count >0) return 0;
-	return osEventWait(osEventSemaphore, (uint32_t)&lock->count, osWaitForever);
+	return osEventWait(osEventSemaphore, (uint32_t)&lock->count);
 }
 int   pthread_spin_trylock(pthread_spinlock_t *lock){
 	int count = semaphore_enter(&lock->count);
@@ -507,7 +511,7 @@ int pthread_rwlock_wrlock(pthread_rwlock_t *rwlock)
 	do {// если число читателей нуль count=1, заблокировать чтение. 
 		count = atomic_int_get(ptr);
 		if (count <= 0) 
-			return osEventWait(osEventSemaphore, (uintptr_t)&rwlock->count, osWaitForever);// Уменьшает на единицу, если больше 0
+			return osEventWait(osEventSemaphore, (uintptr_t)&rwlock->count);// Уменьшает на единицу, если больше 0
 	}while(!atomic_int_compare_and_exchange(ptr, count, 0));
 	return 0; // 1 - получен доступ
 }

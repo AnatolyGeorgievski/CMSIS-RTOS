@@ -105,10 +105,9 @@ int sigqueue(pid_t pid, int signo, const union sigval value)
 	int idx = atomic_fetch_add(&sig_queue->wrpos, 1) & (_POSIX_SIGQUEUE_MAX-1);// индекс FIFO
 	// заполнить структуру siginfo
 	siginfo_t *info = &sig_queue->info[idx];
-	info->si_code  = SI_QUEUE;
-	info->si_signo = signo;
+//	info->si_code  = SI_QUEUE;
+	info->si_signo = signo;// 5-8 бит
 	info->si_value = value;
-	//info->pid = pid;
 	atomic_fetch_or(&sig_queue->ready[idx/32], 1UL<<(idx%32));
 	semaphore_leave(&sig_queue->rdlock);
 	return 0;

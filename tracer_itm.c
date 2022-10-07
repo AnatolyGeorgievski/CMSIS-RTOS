@@ -73,7 +73,7 @@ uint32_t *dwt_ctrl = (uint32_t *) 0xE0001000;
 *((volatile unsigned *)0xE00400F0) = 0x00000002; // 0xE00400F0 Selected pin protocol 01: Serial Wire Output - manchester (default value), 10: Serial Wire Output - NRZ
 */
 #if defined(GD32E10X)
-DBG_CTL &= ~DBG_CTL_TRACE_MODE;
+// DBG_CTL &= ~DBG_CTL_TRACE_MODE; -- выкинули поддержку
 DBG_CTL |=  DBG_CTL_TRACE_IOEN;
 #else// для STM32
 DBGMCU->CR &= ~DBGMCU_CR_TRACE_MODE;

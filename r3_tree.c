@@ -123,7 +123,7 @@ tree_t* tree_insert_tree(tree_t** prev, tree_t* elem)
     }
 	//*prev = elem;
 	// CAS(prev, node, elem);
-	} while(!atomic_pointer_compare_and_exchange(prev, node, elem));
+	} while(!atomic_pointer_compare_and_exchange((volatile void**)prev, node, elem));
   /* Restore balance. This is the goodness of a non-recursive
    * implementation, when we are done with balancing we 'break'
    * the loop and we are done.
@@ -221,7 +221,7 @@ tree_t* tree_remove(tree_t **root, uint32_t key)
 #ifdef TREE_TEST
 #include "r3_slice.h"
 // $ gcc r3core/r3_tree.c r3core/r3_slice.c -DTREE_TEST -o r3_tree.exe
-// $ gcc r3core/r3_tree.c r3core/r3_slice.c r3core/tree_remove.c r3core/tree_init.c r3core/tree_balance.c r3core/tree_merge.c r3core/tree_notify.c r3core/tree_insert.c -DTREE_TEST -o r3_tree.exe
+// $ gcc  -DTREE_TEST -o tree r3core/r3_tree.c r3core/r3_slice.c r3core/tree_remove.c r3core/tree_balance.c r3core/tree_merge.c r3core/tree_notify.c r3core/tree_insert.c
 void tree_test(tree_t * tree, int depth)
 {
 	if(tree->prev) tree_test(tree->prev, depth+1);
@@ -231,6 +231,15 @@ void tree_test(tree_t * tree, int depth)
 }
 #define MEX_EL 57
 
+uint32_t rev8(uint32_t n){
+	const uint32_t m4 = 0x0F0F0F0FU;
+	const uint32_t m2 = 0x33333333U;
+	const uint32_t m1 = 0x55555555U;
+	n = (n&m4)<<4 | (n&~m4)>>4;
+	n = (n&m2)<<2 | (n&~m2)>>2;
+	n = (n&m1)<<1 | (n&~m1)>>1;
+	return n;
+}
 int main()
 {
 	printf("tree test\n");
@@ -242,7 +251,7 @@ int main()
 	int i;
 	for (i=1;i<MEX_EL; i++){
 		tree_t* leaf = g_slice_alloc(sizeof(tree_t));
-		tree_init(leaf, i, leaf);
+		tree_init(leaf, rev8(i), leaf);
 		tree_insert_tree(&tree, leaf);
 //		tree_insert(&tree, leaf);
 

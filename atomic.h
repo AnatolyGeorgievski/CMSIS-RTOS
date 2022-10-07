@@ -39,7 +39,7 @@ or alternatively,
 #define ATOMIC_H
 // атомарные операции производим с целым типом
 typedef volatile int atomic_t;
-#define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
+#define ACCESS_ONCE(x) (*(volatile __typeof__(x) *)&(x))
 #define compiler_barrier() asm volatile("": : :"memory")
 
 #if (defined(__arm__) && __ARM_ARCH >= 6)
@@ -100,10 +100,21 @@ static inline void atomic_free()
     \return значение переменной
  */
 __attribute__(( always_inline ))
-static inline int atomic_int_get(volatile int *ptr)
-{
+static inline int atomic_int_get(volatile int *ptr) {
 	int result;
 	__ASM volatile ("ldrex %0, %1" : "=r" (result) : "Q" (*ptr) ); // \see CMSIS/core_cmIntr.h
+	return result;
+}
+__attribute__(( always_inline ))
+static inline short int atomic_short_get(volatile short int *ptr) {
+	short int result;
+	__ASM volatile ("ldrexh %0, %1" : "=r" (result) : "Q" (*ptr) ); // \see CMSIS/core_cmIntr.h
+	return result;
+}
+__attribute__(( always_inline ))
+static inline uint8_t atomic_uint8_get(volatile uint8_t *ptr) {
+	uint8_t result;
+	__ASM volatile ("ldrexb %0, %1" : "=r" (result) : "Q" (*ptr) ); // \see cmsis_gcc.h
 	return result;
 }
 /*! \brief атомарно читает переменную типа указатель по заданному указателю
@@ -135,7 +146,22 @@ static inline int atomic_int_compare_and_exchange(volatile int *ptr, int oldval,
 	int result;
 	__ASM volatile ("strex %0, %2, %1" : "=&r" (result), "=Q" (*ptr) : "r" (newval) );
 //	__DMB();
-//	return !result;
+	return result==0;
+}
+__attribute__(( always_inline ))
+static inline short int atomic_short_compare_and_exchange(volatile short int *ptr, short int oldval, short int newval)
+{
+	short int result;
+	__ASM volatile ("strexh %0, %2, %1" : "=&r" (result), "=Q" (*ptr) : "r" (newval) );
+//	__DMB();
+	return result==0;
+}
+__attribute__(( always_inline ))
+static inline uint8_t atomic_uint8_compare_and_exchange(volatile uint8_t *ptr, uint8_t oldval, uint8_t newval)
+{
+	uint8_t result;
+	__ASM volatile ("strexb %0, %2, %1" : "=&r" (result), "=Q" (*ptr) : "r" (newval) );
+//	__DMB();
 	return result==0;
 }
 /*!	\brief производит сравнение и замену атомарного указателя. Если значение переменной по указанному адресу изменилось,
